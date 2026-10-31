@@ -12,9 +12,12 @@
     $('#loginForm').hidden = true;
     return;
   }
+  { const m = /[?&]bling=([\w-]+)/.exec(location.hash); if (m) { window.__BLING_RET = m[1]; history.replaceState(null, '', location.pathname + '#comercial'); } }
   const HASH0 = location.hash; // capturado antes do Supabase limpar o endereço
   const CONVITE = /type=(invite|signup)/.test(HASH0);
   const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
+  window.CIA_FN = async (nome, body) => { const { data, error } = await sb.functions.invoke(nome, { body }); if (error) { let m = error.message; try { const j = await error.context.json(); if (j && j.erro) m = j.erro; } catch (e) { /* */ } throw new Error(m); } if (data && data.erro) throw new Error(data.erro); return data; };
+  window.CIA_PAPEL = () => (PERFIL && PERFIL.papel) || '';
   let USER = null, PERFIL = null, recuperando = CONVITE;
   const ehAdmin = () => !!PERFIL && PERFIL.papel === 'admin';
   const ehGestor = () => !!PERFIL && ['admin', 'master'].includes(PERFIL.papel);

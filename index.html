@@ -513,6 +513,7 @@ body{font-size:14px}
     </label>
     <div class="row" style="margin-top:8px"><label class="note" for="comTipoArq">O arquivo é de</label><select id="comTipoArq"><option value="pedido">Pedidos de venda</option><option value="proposta">Propostas comerciais</option></select><label class="note" for="comEmpArq">Empresa</label><select id="comEmpArq"></select><span class="grow"></span><button type="button" class="btn pri" id="comNovo">Novo pedido ou proposta</button></div>
     <p class="note" id="comMsg" aria-live="polite"></p>
+    <div class="panel" id="blingBox" style="margin:10px 0 14px"><div class="row" style="margin-bottom:6px"><h3 class="grow">Bling</h3><button type="button" class="btn pri" id="blSync">Sincronizar agora</button></div><div id="blContas" class="row" style="gap:10px;flex-wrap:wrap"><span class="note">Carregando…</span></div><p class="note" id="blMsg" aria-live="polite">Pedidos de venda e propostas em aberto e o estoque por depósito vêm direto do Bling a cada 30 minutos.</p></div>
     <div class="row empRow"><span class="eyebrow">Ver por</span><div class="chips" id="comEmp" role="group" aria-label="Empresa"></div></div>
     <div class="res" id="comResumo"></div>
     <div class="row" style="margin-bottom:10px"><div class="chips" id="comChips"><button class="chip" data-t="">Pedidos e propostas</button><button class="chip" data-t="pedido">Só pedidos</button><button class="chip" data-t="proposta">Só propostas</button></div>
@@ -669,7 +670,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261031a"></script>
-<script src="shell.js?v=20261031a"></script>
+<script src="config.js?v=20261031b"></script>
+<script src="shell.js?v=20261031b"></script>
 </body>
 </html>

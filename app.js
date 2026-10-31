@@ -651,6 +651,24 @@ $('#estSearch').addEventListener('input',renderEstoque);
 $('#venLimpar').addEventListener('click',async e=>{const b=e.currentTarget;if(!b.dataset.ok){b.dataset.ok='1';b.textContent='Confirmar: apagar vendas importadas';setTimeout(()=>{delete b.dataset.ok;b.textContent='Apagar vendas importadas'},3000);return}
   const ids=Object.keys(vendasLotes);vendasLotes={};lsVE();renderAll();if(db){try{const s=await db.collection('vendas').get();for(const d of s.docs)await db.collection('vendas').doc(d.id).delete()}catch(err){}}b.textContent='Apagar vendas importadas';delete b.dataset.ok});
 
+
+/* ---------- BLING: conexão e sincronização ---------- */
+let BL={carregado:false,contas:[],ocupado:false};
+const dtBR=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+async function blStatus(){if(!window.CIA_FN){$('#blingBox').hidden=true;return}try{const r=await CIA_FN('bling-sync',{acao:'status'});BL.contas=r.contas||[];BL.carregado=true}catch(e){BL.erro=e.message}renderBling()}
+function renderBling(){const el=$('#blContas');if(!el)return;const gestor=['admin','master'].includes(window.CIA_PAPEL?CIA_PAPEL():'');
+  if(BL.erro&&!BL.contas.length){el.innerHTML='<span class="note">'+(/Failed to send|fetch|404/i.test(BL.erro)?'A integração com o Bling ainda não foi publicada no Supabase.':esc(BL.erro))+'</span>';$('#blSync').hidden=true;return}
+  $('#blSync').hidden=!BL.contas.some(c=>c.conectada)||document.body.classList.contains('ro');
+  el.innerHTML=BL.contas.map(c=>{const r=c.resultado||{};const det=c.conectada?(r.erro?'<span class="pill bad">erro</span> '+esc(r.erro):(c.ultimo_sync?'última: '+dtBR(c.ultimo_sync)+(r.pedidos!=null?' · '+r.pedidos+' pedidos · '+(r.propostas||0)+' propostas':''):'aguardando a 1ª sincronização')):(c.segredos?'não conectada':'faltam as chaves no Supabase');
+    return '<div class="box" style="min-width:240px;flex:1"><div class="eyebrow">'+esc(c.nome)+'</div><div style="margin:4px 0"><span class="pill '+(c.conectada?(r.erro?'warn':'ok'):'neu')+'">'+(c.conectada?'Conectada':'Desconectada')+'</span></div><div class="note">'+det+'</div>'+(gestor&&c.segredos?'<div class="row" style="margin-top:6px"><button type="button" class="btn'+(c.conectada?' ghost':'')+'" data-blcon="'+c.empresa+'">'+(c.conectada?'Reconectar':'Conectar ao Bling')+'</button></div>':'')+'</div>'}).join('')||'<span class="note">Sem contas.</span>';
+}
+$('#blContas').addEventListener('click',async e=>{const b=e.target.closest('[data-blcon]');if(!b)return;b.disabled=true;b.textContent='Abrindo o Bling…';
+  try{const r=await CIA_FN('bling-sync',{acao:'autorizar',empresa:b.dataset.blcon});location.href=r.url}catch(err){$('#blMsg').textContent=err.message;b.disabled=false;b.textContent='Conectar ao Bling'}});
+$('#blSync').addEventListener('click',async e=>{const b=e.currentTarget;if(BL.ocupado)return;BL.ocupado=true;b.disabled=true;b.textContent='Sincronizando… (pode levar 1 a 2 minutos)';
+  try{const r=await CIA_FN('bling-sync',{acao:'sincronizar'});const t=(r.resultado||[]).map(x=>(x.empresa==='we'?'We Premium':'Creative')+': '+(x.erro?'erro — '+x.erro:x.conectada===false?'não conectada':(x.pedidos||0)+' pedidos, '+(x.propostas||0)+' propostas'+(x.faltaDetalhar?' (continua na próxima rodada)':''))).join(' · ');$('#blMsg').textContent='Sincronizado. '+t}
+  catch(err){$('#blMsg').textContent='Não sincronizou: '+err.message}
+  BL.ocupado=false;b.disabled=false;b.textContent='Sincronizar agora';blStatus()});
+if(window.__BLING_RET){$('#blMsg').textContent=/^ok/.test(window.__BLING_RET)?'Bling conectado! Clique em "Sincronizar agora" para trazer os pedidos e o estoque.':'O link de autorização expirou. Clique em Conectar de novo.';window.__BLING_RET=null}
 /* ---------- EXPORTAR RELATÓRIOS (.xlsx) ---------- */
 const R2=x=>Math.round((+x||0)*100)/100,R4=x=>Math.round((+x||0)*10000)/10000;
 const dBR=s=>s?String(s).split('-').reverse().join('/'):'';
@@ -732,7 +750,7 @@ const LBL={"inicio": ["Início", "Cia Beauty · projetos licenciados"], "entrega
 function showTab(t){if(!tabs.includes(t))t='inicio';$('#kpis').hidden=t!=='inicio';$('#tabTitle').textContent=t==='inicio'?('Olá'+(window.__NOME?', '+window.__NOME:'')):LBL[t][0]==='Custos'?'Custos':LBL[t][0]==='Produtos'?'Produtos':LBL[t][0]==='Carteira'?'Carteira futura':LBL[t][0]==='Compras'?'Compras de insumos':LBL[t][0]==='Notas XML'?'Notas fiscais (XML)':LBL[t][0]==='Estoque'?'Estoque':LBL[t][0]==='Comercial'?'Comercial':LBL[t][0]==='Vendas'?'Vendas':'Entregas';$('#tabSub').textContent=LBL[t][1];window.scrollTo(0,0);document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));tabs.forEach(x=>$('#tab-'+x).hidden=x!==t);if(location.hash!=='#'+t)history.replaceState(null,'','#'+t);renderAll()}
 document.querySelector('nav.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.tab)});
 window.addEventListener('hashchange',()=>showTab(location.hash.slice(1)));
-function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador')renderSim();if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras')renderCompras();if(t==='notas')renderNotas();if(t==='vendas')renderVendas();if(t==='comercial')renderComercial();if(t==='estoque')renderEstoque()}
+function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador')renderSim();if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras')renderCompras();if(t==='notas')renderNotas();if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
 document.addEventListener('click',e=>{if(!e.target.closest('.searchbox')){const s=$('#sugg');if(s)s.hidden=true}});
 
 
