@@ -756,10 +756,11 @@ const dtBR=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit
 async function blStatus(){if(!window.CIA_FN){$('#blingBox').hidden=true;$('#syncAll').hidden=true;return}try{const r=await CIA_FN('bling-sync',{acao:'status'});BL.contas=r.contas||[];BL.carregado=true}catch(e){BL.erro=e.message}renderBling();syncInfo()}
 function syncInfo(){const el=$('#syncInfo');if(!el)return;const t=BL.contas.map(c=>c.ultimo_sync).filter(Boolean).sort().pop();el.textContent=BL.ocupado?'':t?'Bling: última sincronização '+dtBR(t):(BL.contas.some(c=>c.conectada)?'Bling conectado':'');$('#syncAll').hidden=document.body.classList.contains('ro')||(BL.carregado&&!BL.contas.some(c=>c.conectada))}
 $('#syncAll').addEventListener('click',async e=>{const b=e.currentTarget;if(BL.ocupado)return;BL.ocupado=true;b.disabled=true;syncInfo();const passo=t=>{b.textContent=t};const res=[];
-  try{passo('↻ Pedidos, propostas, estoque e preços… (1/3)');const r=await CIA_FN('bling-sync',{acao:'sincronizar'});(r.resultado||[]).forEach(x=>res.push(x));
-    passo('↻ Notas fiscais de entrada… (2/3)');try{await CIA_FN('bling-sync',{acao:'nfeEntrada'})}catch(err){}
-    passo('↻ Trazendo as notas para o painel… (3/3)');BLX.rodando=false;await puxarXmlsBling();
-    const t=res.map(x=>(x.empresa==='we'?'We Premium':'Creative')+': '+(x.erro?'erro — '+x.erro:x.conectada===false?'não conectada':(x.pedidos||0)+' pedidos, '+(x.propostas||0)+' propostas'+(x.novasEntrada?', '+x.novasEntrada+' notas novas':''))).join(' · ');
+  try{passo('↻ Pedidos, propostas, estoque e preços… (1/4)');const r=await CIA_FN('bling-sync',{acao:'sincronizar'});(r.resultado||[]).forEach(x=>res.push(x));
+    passo('↻ Notas fiscais de entrada… (2/4)');try{await CIA_FN('bling-sync',{acao:'nfeEntrada'})}catch(err){}
+    passo('↻ Notas fiscais de saída… (3/4)');try{const r2=await CIA_FN('bling-sync',{acao:'nfeSaida'});(r2.resultado||[]).forEach(y=>{const x=res.find(z=>z.empresa===y.empresa);if(x){x.novasSaida=(x.novasSaida||0)+(y.novasSaida||0);x.faltamSaida=y.faltamSaida}})}catch(err){}
+    passo('↻ Trazendo as notas para o painel… (4/4)');BLX.rodando=false;await puxarXmlsBling();
+    const t=res.map(x=>(x.empresa==='we'?'We Premium':'Creative')+': '+(x.erro?'erro — '+x.erro:x.conectada===false?'não conectada':(x.pedidos||0)+' pedidos, '+(x.propostas||0)+' propostas'+(x.novasEntrada?', '+x.novasEntrada+' NF entrada':'')+(x.novasSaida?', '+x.novasSaida+' NF saída':'')+(x.faltamSaida?' (faltam '+x.faltamSaida+' NF de saída — continuam na próxima rodada)':''))).join(' · ');
     setSave('ok','Sincronizado com o Bling');const m=$('#blMsg');if(m)m.textContent='Sincronizado. '+t;b.title='Última: '+t}
   catch(err){setSave('warn','Bling: '+err.message);const m=$('#blMsg');if(m)m.textContent='Não sincronizou: '+err.message}
   b.textContent='↻ Sincronizar tudo com o Bling';b.disabled=false;BL.ocupado=false;await blStatus();renderAll()});
