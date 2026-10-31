@@ -662,6 +662,9 @@ body{font-size:14px}
       <button class="hi soGestor" id="hubUsuarios"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg><span>Usuários<small>Cadastrar, papéis, abas e senhas</small></span></button>
       <button class="hi soGestor" id="hubBase"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg><span>Atualizar base<small>Enviar um novo base_inicial.json</small></span></button>
       <button class="hi soGestor" id="hubBackup"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Backup<small>Baixar, cópias automáticas e restauração</small></span></button>
+      <button class="hi soGestor" data-cfgp="blingBox"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg><span>Integração Bling<small>Conectar We Premium e Creative, sincronizar agora</small></span></button>
+      <button class="hi soGestor" data-cfgp="entPainel"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 14l2 2 4-4"/></svg><span>Origem das entradas<small>Planilha ou só notas fiscais (Bling e XML)</small></span></button>
+      <button class="hi soGestor" data-cfgp="vincPainel"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Cadastro de vínculos<small>Ligar códigos das notas aos produtos acabados</small></span></button>
       <div class="hi"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="grow">Tema</span><span class="seg" id="segTema"><button type="button" data-t="light">Claro</button><button type="button" data-t="dark">Escuro</button><button type="button" data-t="auto">Auto</button></span></div>
       <button class="hi" id="hubSenha"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Trocar minha senha</span></button>
       <button class="hi sair" id="hubSair"><svg viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 17l-5-5 5-5M5 12h11"/></svg><span>Sair</span></button>
@@ -669,11 +672,17 @@ body{font-size:14px}
     <p class="note" id="hubWho"></p>
   </div>
 </div>
+<div class="cmodal" id="cfgPainel" hidden>
+  <div class="panel" style="width:min(1150px,100%);max-height:90dvh;overflow:auto">
+    <div class="row" style="margin-bottom:8px"><h2 class="grow" id="cfgPTit">Configurações</h2><button class="btn" id="cfgPVoltar">← Configurações</button><button class="btn" id="cfgPFechar">Fechar</button></div>
+    <div id="cfgPCorpo"></div>
+  </div>
+</div>
 <script id="data" type="application/json"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261031f"></script>
-<script src="shell.js?v=20261031f"></script>
+<script src="config.js?v=20261031g"></script>
+<script src="shell.js?v=20261031g"></script>
 </body>
 </html>

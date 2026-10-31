@@ -767,6 +767,20 @@ $('#blSync').addEventListener('click',async e=>{const b=e.currentTarget;if(BL.oc
   catch(err){$('#blMsg').textContent='Não sincronizou: '+err.message}
   BL.ocupado=false;b.disabled=false;b.textContent='Sincronizar agora';blStatus()});
 if(window.__BLING_RET){$('#blMsg').textContent=/^ok/.test(window.__BLING_RET)?'Bling conectado! Clique em "Sincronizar agora" para trazer os pedidos e o estoque.':'O link de autorização expirou. Clique em Conectar de novo.';window.__BLING_RET=null}
+
+/* ---------- painéis de configuração abertos pelo menu Configurações ---------- */
+const CFGP={blingBox:['Integração Bling',()=>{if(!BL.pedindo){BL.pedindo=true;blStatus()}else{blStatus()}}],entPainel:['Origem das entradas',()=>renderEntradas()],vincPainel:['Cadastro de vínculos',()=>renderVinculos()]};
+let CFGP_ATUAL=null;
+function devolverPainelCfg(){if(!CFGP_ATUAL)return;const {el,pai,prox}=CFGP_ATUAL;if(prox&&prox.parentNode===pai)pai.insertBefore(el,prox);else pai.appendChild(el);CFGP_ATUAL=null}
+function abrirPainelCfg(id){const el=document.getElementById(id),cfg=CFGP[id];if(!el||!cfg)return;devolverPainelCfg();
+  CFGP_ATUAL={el,pai:el.parentNode,prox:el.nextSibling};document.querySelectorAll('.cmodal').forEach(m=>m.hidden=true);
+  $('#cfgPTit').textContent=cfg[0];$('#cfgPCorpo').appendChild(el);el.hidden=false;$('#cfgPainel').hidden=false;try{cfg[1]()}catch(e){}}
+function fecharPainelCfg(){$('#cfgPainel').hidden=true;devolverPainelCfg();renderAll()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-cfgp]');if(b){abrirPainelCfg(b.dataset.cfgp);return}
+  if(e.target.closest('#cfgPFechar')){fecharPainelCfg();return}
+  if(e.target.closest('#cfgPVoltar')){fecharPainelCfg();const h=document.getElementById('btnCfg');if(h)h.click();return}
+  if(e.target.id==='cfgPainel')fecharPainelCfg()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#cfgPainel').hidden)fecharPainelCfg()});
 /* ---------- EXPORTAR RELATÓRIOS (.xlsx) ---------- */
 const R2=x=>Math.round((+x||0)*100)/100,R4=x=>Math.round((+x||0)*10000)/10000;
 const dBR=s=>s?String(s).split('-').reverse().join('/'):'';
