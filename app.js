@@ -753,20 +753,24 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-blpc
   try{await CIA_FN('bling-sync',{acao:'precoCompra',empresa:emp,cod:b.dataset.cod,valor:v});b.textContent='Salvo ✓';if(m)m.textContent='Preço de compra atualizado no Bling da '+(emp==='we'?'We Premium':'Creative')+'.'}
   catch(err){b.textContent='Salvar no Bling';if(m)m.textContent='Não salvou: '+err.message}b.disabled=false});
 const dtBR=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-async function blStatus(){if(!window.CIA_FN){$('#blingBox').hidden=true;return}try{const r=await CIA_FN('bling-sync',{acao:'status'});BL.contas=r.contas||[];BL.carregado=true}catch(e){BL.erro=e.message}renderBling()}
+async function blStatus(){if(!window.CIA_FN){$('#blingBox').hidden=true;$('#syncAll').hidden=true;return}try{const r=await CIA_FN('bling-sync',{acao:'status'});BL.contas=r.contas||[];BL.carregado=true}catch(e){BL.erro=e.message}renderBling();syncInfo()}
+function syncInfo(){const el=$('#syncInfo');if(!el)return;const t=BL.contas.map(c=>c.ultimo_sync).filter(Boolean).sort().pop();el.textContent=BL.ocupado?'':t?'Bling: última sincronização '+dtBR(t):(BL.contas.some(c=>c.conectada)?'Bling conectado':'');$('#syncAll').hidden=document.body.classList.contains('ro')||(BL.carregado&&!BL.contas.some(c=>c.conectada))}
+$('#syncAll').addEventListener('click',async e=>{const b=e.currentTarget;if(BL.ocupado)return;BL.ocupado=true;b.disabled=true;syncInfo();const passo=t=>{b.textContent=t};const res=[];
+  try{passo('↻ Pedidos, propostas, estoque e preços… (1/3)');const r=await CIA_FN('bling-sync',{acao:'sincronizar'});(r.resultado||[]).forEach(x=>res.push(x));
+    passo('↻ Notas fiscais de entrada… (2/3)');try{await CIA_FN('bling-sync',{acao:'nfeEntrada'})}catch(err){}
+    passo('↻ Trazendo as notas para o painel… (3/3)');BLX.rodando=false;await puxarXmlsBling();
+    const t=res.map(x=>(x.empresa==='we'?'We Premium':'Creative')+': '+(x.erro?'erro — '+x.erro:x.conectada===false?'não conectada':(x.pedidos||0)+' pedidos, '+(x.propostas||0)+' propostas'+(x.novasEntrada?', '+x.novasEntrada+' notas novas':''))).join(' · ');
+    setSave('ok','Sincronizado com o Bling');const m=$('#blMsg');if(m)m.textContent='Sincronizado. '+t;b.title='Última: '+t}
+  catch(err){setSave('warn','Bling: '+err.message);const m=$('#blMsg');if(m)m.textContent='Não sincronizou: '+err.message}
+  b.textContent='↻ Sincronizar tudo com o Bling';b.disabled=false;BL.ocupado=false;await blStatus();renderAll()});
 function renderBling(){const el=$('#blContas');if(!el)return;const gestor=['admin','master'].includes(window.CIA_PAPEL?CIA_PAPEL():'');
-  if(BL.erro&&!BL.contas.length){el.innerHTML='<span class="note">'+(/Failed to send|fetch|404/i.test(BL.erro)?'A integração com o Bling ainda não foi publicada no Supabase.':esc(BL.erro))+'</span>';$('#blSync').hidden=true;return}
-  $('#blSync').hidden=!BL.contas.some(c=>c.conectada)||document.body.classList.contains('ro');
+  if(BL.erro&&!BL.contas.length){el.innerHTML='<span class="note">'+(/Failed to send|fetch|404/i.test(BL.erro)?'A integração com o Bling ainda não foi publicada no Supabase.':esc(BL.erro))+'</span>';return}
   el.innerHTML=BL.contas.map(c=>{const r=c.resultado||{};const det=c.conectada?(r.erro?'<span class="pill bad">erro</span> '+esc(r.erro):(c.ultimo_sync?'última: '+dtBR(c.ultimo_sync)+(r.pedidos!=null?' · '+r.pedidos+' pedidos · '+(r.propostas||0)+' propostas':''):'aguardando a 1ª sincronização')):(c.segredos?'não conectada':'faltam as chaves no Supabase');
     return '<div class="box" style="min-width:240px;flex:1"><div class="eyebrow">'+esc(c.nome)+'</div><div style="margin:4px 0"><span class="pill '+(c.conectada?(r.erro?'warn':'ok'):'neu')+'">'+(c.conectada?'Conectada':'Desconectada')+'</span></div><div class="note">'+det+'</div>'+(gestor&&c.segredos?'<div class="row" style="margin-top:6px"><button type="button" class="btn'+(c.conectada?' ghost':'')+'" data-blcon="'+c.empresa+'">'+(c.conectada?'Reconectar':'Conectar ao Bling')+'</button></div>':'')+'</div>'}).join('')||'<span class="note">Sem contas.</span>';
 }
 $('#blContas').addEventListener('click',async e=>{const b=e.target.closest('[data-blcon]');if(!b)return;b.disabled=true;b.textContent='Abrindo o Bling…';
   try{const r=await CIA_FN('bling-sync',{acao:'autorizar',empresa:b.dataset.blcon});location.href=r.url}catch(err){$('#blMsg').textContent=err.message;b.disabled=false;b.textContent='Conectar ao Bling'}});
-$('#blSync').addEventListener('click',async e=>{const b=e.currentTarget;if(BL.ocupado)return;BL.ocupado=true;b.disabled=true;b.textContent='Sincronizando… (pode levar 1 a 2 minutos)';
-  try{const r=await CIA_FN('bling-sync',{acao:'sincronizar'});const t=(r.resultado||[]).map(x=>(x.empresa==='we'?'We Premium':'Creative')+': '+(x.erro?'erro — '+x.erro:x.conectada===false?'não conectada':(x.pedidos||0)+' pedidos, '+(x.propostas||0)+' propostas'+(x.faltaDetalhar?' (continua na próxima rodada)':''))).join(' · ');$('#blMsg').textContent='Sincronizado. '+t}
-  catch(err){$('#blMsg').textContent='Não sincronizou: '+err.message}
-  BL.ocupado=false;b.disabled=false;b.textContent='Sincronizar agora';blStatus()});
-if(window.__BLING_RET){$('#blMsg').textContent=/^ok/.test(window.__BLING_RET)?'Bling conectado! Clique em "Sincronizar agora" para trazer os pedidos e o estoque.':'O link de autorização expirou. Clique em Conectar de novo.';window.__BLING_RET=null}
+if(window.__BLING_RET){$('#blMsg').textContent=/^ok/.test(window.__BLING_RET)?'Bling conectado! Clique em "Sincronizar tudo com o Bling", no topo, para trazer os dados.':'O link de autorização expirou. Clique em Conectar de novo.';window.__BLING_RET=null}
 
 /* ---------- painéis de configuração abertos pelo menu Configurações ---------- */
 const CFGP={blingBox:['Integração Bling',()=>{if(!BL.pedindo){BL.pedindo=true;blStatus()}else{blStatus()}}],entPainel:['Origem das entradas',()=>renderEntradas()],vincPainel:['Cadastro de vínculos',()=>renderVinculos()]};
@@ -1017,7 +1021,7 @@ function auditLine(o){if(!o||!o._em)return '';const n=o._por?(NOMES[o._por]||'')
   db.collection('estoque').onSnapshot(snap=>{const L={};let lista=null;snap.docs.forEach(d=>{if(!d.exists)return;const x=JSON.parse(JSON.stringify(d.data()));if(d.id==='_locais')lista=x.lista;else L[d.id==='atual'?'stralog':d.id]=x});
     if(lista&&lista.length)LOCAIS=lista;Object.keys(L).forEach(id=>{if(!LOCAIS.some(l=>l.id===id))LOCAIS.push({id,nome:id})});estLocais=L;combinarEstoque();lsEst();renderAll()},()=>{});
   db.doc('cfg/entradas').onSnapshot(s=>{if(s.exists){const x=JSON.parse(JSON.stringify(s.data()));CFG_ENT=Object.assign({fonte:'planilha',ignorar:[]},x);applyNotas();renderAll()}},()=>{});
-  setTimeout(()=>puxarXmlsBling(),4000);
+  setTimeout(()=>puxarXmlsBling(),4000);setTimeout(()=>blStatus(),2500);
   db.doc('bling/precos').onSnapshot(s=>{BL.precos=s.exists?JSON.parse(JSON.stringify(s.data())):null;if(!$('#tab-produtos').hidden&&PD.cur)pdPainel()},()=>{});
   db.collection('pedidos').onSnapshot(snap=>{const P={};snap.docs.forEach(d=>{if(d.exists)P[d.id]=JSON.parse(JSON.stringify(d.data()))});pedidos=P;EMPENHO=null;lsPed();renderAll()},()=>{});
   db.collection('vendas').onSnapshot(snap=>{const L={};snap.docs.forEach(d=>{if(!d.exists)return;const x=d.data();const l=L[x.lote]||(L[x.lote]={arquivo:x.arquivo,importado:x.importado,partes:x.partes,empresa:x.empresa||'',serie:x.serie||'',linhas:[],_p:{}});l._p[x.parte]=x.linhas});
