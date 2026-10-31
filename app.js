@@ -653,7 +653,16 @@ $('#venLimpar').addEventListener('click',async e=>{const b=e.currentTarget;if(!b
 
 
 /* ---------- BLING: conexão e sincronização ---------- */
-let BL={carregado:false,contas:[],ocupado:false};
+let BL={carregado:false,contas:[],ocupado:false,precos:null};
+function pdPrecoBling(p,unit){const cod=normK(p.codigo);if(!cod||!window.CIA_FN)return '';const it=(BL.precos&&BL.precos.itens&&BL.precos.itens[cod])||{};const ro=document.body.classList.contains('ro');
+  const linhas=[['we','We Premium'],['cr','Creative House']].map(([e,n])=>{const x=it[e];
+    if(!x)return '<div class="row" style="gap:8px;align-items:center"><span style="min-width:120px">'+n+'</span><span class="note">'+(BL.precos?'sem fornecedor no Bling':'aguardando sincronização')+'</span></div>';
+    return '<div class="row" style="gap:8px;align-items:center"><span style="min-width:120px">'+n+'</span><input type="number" step="0.01" min="0" value="'+(+x.v||0)+'" data-blpcin="'+e+'" style="width:110px" aria-label="Preço de compra '+n+'"'+(ro?' disabled':'')+'>'+(ro?'':'<button type="button" class="btn" data-blpc="'+e+'" data-cod="'+esc(cod)+'">Salvar no Bling</button>')+(unit&&x.v?'<span class="note">'+(x.v>unit?'+':'')+pdPct.format((x.v-unit)/unit)+' vs custo calculado</span>':'')+'</div>'}).join('');
+  return '<div><h3 style="margin-bottom:6px">Preço de compra no Bling</h3><div style="display:flex;flex-direction:column;gap:6px">'+linhas+'</div><p class="note" id="blpcMsg">Custo calculado pelo painel: '+pdR3.format(unit)+'/un. Ao salvar, o valor vai para o fornecedor padrão do produto no Bling.</p></div>'}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-blpc]');if(!b)return;const emp=b.dataset.blpc,inp=b.parentElement.querySelector('[data-blpcin]');const v=parseFloat(String(inp.value).replace(',','.'));const m=$('#blpcMsg');
+  if(!(v>=0)){if(m)m.textContent='Informe um valor válido.';return}b.disabled=true;b.textContent='Salvando…';
+  try{await CIA_FN('bling-sync',{acao:'precoCompra',empresa:emp,cod:b.dataset.cod,valor:v});b.textContent='Salvo ✓';if(m)m.textContent='Preço de compra atualizado no Bling da '+(emp==='we'?'We Premium':'Creative')+'.'}
+  catch(err){b.textContent='Salvar no Bling';if(m)m.textContent='Não salvou: '+err.message}b.disabled=false});
 const dtBR=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 async function blStatus(){if(!window.CIA_FN){$('#blingBox').hidden=true;return}try{const r=await CIA_FN('bling-sync',{acao:'status'});BL.contas=r.contas||[];BL.carregado=true}catch(e){BL.erro=e.message}renderBling()}
 function renderBling(){const el=$('#blContas');if(!el)return;const gestor=['admin','master'].includes(window.CIA_PAPEL?CIA_PAPEL():'');
@@ -843,6 +852,7 @@ function pdPainel(){
     el.innerHTML='<div><div class="eyebrow">'+esc(p.id)+' · '+esc(p.colecao||'')+'</div><h2>'+esc(pdNomeCurto(p))+'</h2></div>'+
       '<div class="pd-kv"><div><small>Custo por unidade</small><b>'+pdR3.format(unit)+'</b></div><div><small>Insumos</small><b>'+k.linhas.length+(k.falta?' <span class="pill bad">'+k.falta+' sem custo</span>':'')+'</b></div><div><small>Lote a produzir</small><b>'+fmtI.format(k.Q)+' un</b></div><div><small>Desembolso do lote</small><b>'+fmtR0.format(k.desemb)+'</b></div></div>'+
       (L.length?'<div><h3 style="margin-bottom:8px">De onde vem o custo</h3><div class="pd-comp">'+L.filter(l=>l.un>0).map(l=>'<i style="--tc:var('+pdTipo(l.c.nome)[1]+');width:'+(l.pct*100).toFixed(2)+'%" title="'+esc(l.c.nome)+'"></i>').join('')+'</div></div><div class="pd-leg">'+L.map(l=>'<div style="--tc:var('+pdTipo(l.c.nome)[1]+')"><i class="sw"></i><span>'+esc(l.c.nome)+'</span><span class="num">'+(l.cu==null?'—':pdR3.format(l.un))+'</span><span class="num muted">'+pdPct.format(l.pct)+'</span></div>').join('')+'</div>':'')+
+      pdPrecoBling(p,unit)+
       '<p class="note">Pedido '+fmtI.format(total(p))+' · recebido '+fmtI.format(p.rec||0)+'. Os números seguem a aba Custos (quantidade e abatimento de estoque definidos lá).</p>'+
       '<div class="row"><button class="btn pri" data-pd="custos">Editar em Custos</button>'+(site?'<a class="btn" href="'+esc(site)+'" target="_blank" rel="noopener">Ver no site</a>':'')+(PD.gestor?'<button class="btn" data-pd="trocarFoto">Trocar foto</button>':'')+'</div>';
     return;
@@ -903,6 +913,7 @@ function auditLine(o){if(!o||!o._em)return '';const n=o._por?(NOMES[o._por]||'')
   db=d;setSave('ok','Salvo na nuvem · base única');
   db.collection('estoque').onSnapshot(snap=>{const L={};let lista=null;snap.docs.forEach(d=>{if(!d.exists)return;const x=JSON.parse(JSON.stringify(d.data()));if(d.id==='_locais')lista=x.lista;else L[d.id==='atual'?'stralog':d.id]=x});
     if(lista&&lista.length)LOCAIS=lista;Object.keys(L).forEach(id=>{if(!LOCAIS.some(l=>l.id===id))LOCAIS.push({id,nome:id})});estLocais=L;combinarEstoque();lsEst();renderAll()},()=>{});
+  db.doc('bling/precos').onSnapshot(s=>{BL.precos=s.exists?JSON.parse(JSON.stringify(s.data())):null;if(!$('#tab-produtos').hidden&&PD.cur)pdPainel()},()=>{});
   db.collection('pedidos').onSnapshot(snap=>{const P={};snap.docs.forEach(d=>{if(d.exists)P[d.id]=JSON.parse(JSON.stringify(d.data()))});pedidos=P;EMPENHO=null;lsPed();renderAll()},()=>{});
   db.collection('vendas').onSnapshot(snap=>{const L={};snap.docs.forEach(d=>{if(!d.exists)return;const x=d.data();const l=L[x.lote]||(L[x.lote]={arquivo:x.arquivo,importado:x.importado,partes:x.partes,empresa:x.empresa||'',serie:x.serie||'',linhas:[],_p:{}});l._p[x.parte]=x.linhas});
     Object.values(L).forEach(l=>{Object.keys(l._p).sort((a,b)=>a-b).forEach(k=>l._p[k].forEach(r=>l.linhas.push(r)));delete l._p});
