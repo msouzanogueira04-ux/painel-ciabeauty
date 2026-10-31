@@ -35,7 +35,7 @@ function calc(p){
   const Q=qtd(p),ab=abater(p);let unit=0,desemb=0,bruto=0,falta=0;const linhas=[];
   comps(p).forEach(c=>{
     const coef=+c.coef||0,cu=c.custo==null||c.custo===''?null:+c.custo;
-    const nec=Q*coef,disp=fonteNotas()?(XIN[c.cod]||0)-(CONS[c.cod]||0):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
+    const nec=Q*coef,disp=fonteNotas()?((ALOC[p.id]||{})[c.cod]||0):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
     const v=comprar*(cu||0);if(cu==null)falta++;
     unit+=coef*(cu||0);desemb+=v;bruto+=nec*(cu||0);
     linhas.push({c,nec,est,comprar,v,cu});
@@ -279,11 +279,12 @@ async function importFiles(files){
   lsNotas();applyNotas();renderAll();
   msg.textContent=ok+' nota(s) importada(s)'+(dup?' · '+dup+' já estavam no painel':'')+(plan?' · '+plan+' já constam na planilha (não somam de novo)':'')+(bad?' · '+bad+' arquivo(s) não são NF-e válida':'');
 }
-let CFG_ENT={fonte:'planilha',ignorar:[]};let CONS={};
+let CFG_ENT={fonte:'planilha',ignorar:[]};let CONS={},ENT_ALL={},EMP_INS={},ALOC={};
 function fonteNotas(){return CFG_ENT.fonte==='notas'}
 function envDe(p){const o=st(p);return o.envCods||p.envCods||[]}
 function applyNotas(){
-  XIN={};XOUT={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
+  XIN={};XOUT={};ENT_ALL={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
+  Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;ENT_ALL[i[0]]=(ENT_ALL[i[0]]||0)+i[3]})});
   Object.values(notas).forEach(n=>{
     if(n.tipo==='saida'){n.itens.forEach(i=>{XOUT[i[0]]=(XOUT[i[0]]||0)+i[3]});return}
     if((!soNotas&&BASE_CH.has(n.chave))||n.cancelada||/STRALOG/i.test(n.emit))return;
@@ -293,7 +294,12 @@ function applyNotas(){
   });
   D.comprasMes=mes;D.catalogo=(soNotas?[]:CAT_BASE).concat(Object.values(cat));
   D.projetos.forEach(p=>{const cs=envDe(p);const ex=cs.length?Math.min(...cs.map(c=>XIN[c]||0)):0;p.rec=(soNotas?0:p.rec0)+ex});
-  CONS={};if(soNotas)allProjects().forEach(p=>comps(p).forEach(c=>{if(c.cod)CONS[c.cod]=(CONS[c.cod]||0)+(p.rec||0)*(+c.coef||0)}));
+  CONS={};EMP_INS={};ALOC={};
+  const ps=allProjects();
+  ps.forEach(p=>comps(p).forEach(c=>{if(!c.cod||c.cod==='?')return;const k=String(c.cod);const coef=+c.coef||0;const e=EMP_INS[k]||(EMP_INS[k]={cod:k,nome:c.nome||'',forn:c.forn||'',entrou:ENT_ALL[k]||0,saldoPl:0,cons:{},res:{}});e.saldoPl=Math.max(e.saldoPl,+c.saldo||0);
+    const cq=(p.rec||0)*coef,rq=Math.max(0,total(p)-(p.rec||0))*coef;if(cq)e.cons[p.id]=(e.cons[p.id]||0)+cq;if(rq)e.res[p.id]=(e.res[p.id]||0)+rq;CONS[k]=(CONS[k]||0)+cq}));
+  Object.values(EMP_INS).forEach(e=>{e.consT=Object.values(e.cons).reduce((a,b)=>a+b,0);e.resT=Object.values(e.res).reduce((a,b)=>a+b,0);e.disp=soNotas?e.entrou-e.consT:e.saldoPl+(XIN[e.cod]||0);let livre=Math.max(0,e.disp);e.aloc={};
+    Object.keys(e.res).sort((a,b)=>a.localeCompare(b)).forEach(pid=>{const q=Math.min(e.res[pid],livre);livre-=q;e.aloc[pid]=q;(ALOC[pid]=ALOC[pid]||{})[e.cod]=q});e.livre=e.disp-e.resT});
 }
 /* ---------- ENTRADAS: notas do Bling, origem das entradas e cadastro de vínculos (estruturas) ---------- */
 let BLX={rodando:false,feito:false,msg:''};
@@ -320,6 +326,33 @@ function renderEntradas(){
     +'<p class="note">Com "Só notas fiscais", recebido, compras e estoque de insumos passam a sair das NF de entrada (as do Bling chegam sozinhas a cada 30 min). Os códigos que ligam cada nota ao produto ficam no cadastro de vínculos, na aba Compras.</p>';
 }
 document.addEventListener('change',e=>{if(e.target.name==='entFonte'){CFG_ENT.fonte=e.target.value;salvarCfgEnt()}});
+/* códigos de recebimento (qual linha da NF dá entrada no produto acabado) */
+function codigosNF(){const m={};Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{const c=String(i[0]||'');if(c&&!m[c])m[c]=i[1]+' · '+short(n.emit)})});return m}
+function pdRecebBlock(p){const cs=envDe(p);const ro=document.body.classList.contains('ro');const nomes=codigosNF();
+  const chips=cs.map(c=>'<span class="chip" style="display:inline-flex;gap:6px;align-items:center" title="'+esc(nomes[c]||'código sem nota no painel')+'"><b class="mono">'+esc(c)+'</b><span class="note">'+fmtI.format(XIN[c]||0)+(fonteNotas()?' un. nas notas':' un. em notas novas')+'</span>'+(ro?'':'<button type="button" class="btn ghost" data-rcdel="'+esc(c)+'" aria-label="Remover código '+esc(c)+'" style="padding:0 6px">×</button>')+'</span>').join(' ')||'<span class="note">Nenhum código: o recebido vem só da planilha.</span>';
+  return '<div><h3 style="margin-bottom:6px">Códigos de recebimento</h3><p class="note" style="margin-bottom:6px">A quantidade destes códigos nas NF de entrada conta como produto acabado recebido (ex.: mão de obra do envase da Giudit). Com mais de um código, vale o menor — o produto só fica pronto com todas as partes.</p><div style="display:flex;flex-wrap:wrap;gap:6px">'+chips+'</div>'
+    +(ro?'':'<div class="row" style="margin-top:6px;gap:6px"><input type="text" id="rcNovo" list="rcCods" placeholder="Código da NF (ex.: 5833MO)" aria-label="Novo código de recebimento" style="width:200px"><datalist id="rcCods">'+Object.entries(nomes).slice(0,4000).map(([c,d])=>'<option value="'+esc(c)+'">'+esc(d)+'</option>').join('')+'</datalist><button type="button" class="btn" data-rcadd="'+esc(p.id)+'">Adicionar código</button><span class="note">Recebido hoje: <b>'+fmtI.format(p.rec||0)+'</b> de '+fmtI.format(total(p))+'</span></div>')+'</div>'}
+function salvarRecebimento(pid,lista){const p=byId(pid);if(!p)return;const o=ov[pid]||(ov[pid]={});o.envCods=[...new Set(lista.map(c=>String(c).trim().toUpperCase()).filter(Boolean))];persist(pid);applyNotas();renderAll();if(!$('#tab-produtos').hidden)pdPainel()}
+document.addEventListener('click',e=>{const d=e.target.closest('[data-rcdel]'),a=e.target.closest('[data-rcadd]');if(!d&&!a)return;const pid=PD.cur;const p=byId(pid);if(!p)return;
+  if(d){salvarRecebimento(pid,envDe(p).filter(c=>c!==d.dataset.rcdel));setSave('ok','Código '+d.dataset.rcdel+' removido de '+pid);return}
+  const v=($('#rcNovo').value||'').trim().toUpperCase();if(!v){$('#rcNovo').focus();return}salvarRecebimento(pid,envDe(p).concat([v]));setSave('ok','Código '+v+' adicionado a '+pid)});
+/* empenho de insumos por produto acabado */
+let EMPI_Q='',EMPI_F='';
+function renderEmpInsumos(){const el=$('#empiPainel');if(!el)return;const P={};allProjects().forEach(p=>P[p.id]=p);
+  const L=Object.values(EMP_INS).filter(e=>e.cod&&(e.entrou||e.consT||e.resT));const q=EMPI_Q.toLowerCase();
+  const F=L.filter(e=>(!q||(e.cod+' '+e.nome+' '+e.forn+' '+Object.keys(e.res).concat(Object.keys(e.cons)).join(' ')).toLowerCase().includes(q))&&(!EMPI_F||(EMPI_F==='falta'?e.livre<0:EMPI_F==='multi'?new Set(Object.keys(e.cons).concat(Object.keys(e.res))).size>1:e.livre>0)))
+    .sort((a,b)=>a.livre-b.livre);
+  const nF=L.filter(e=>e.livre<0).length,nM=L.filter(e=>new Set(Object.keys(e.cons).concat(Object.keys(e.res))).size>1).length;
+  const det=e=>{const ids=[...new Set(Object.keys(e.cons).concat(Object.keys(e.res)))].sort();return '<table style="margin:4px 0 2px"><thead><tr><th>Produto</th><th class="n">Consumido</th><th class="n">Empenhado</th><th class="n">Coberto pelo saldo</th></tr></thead><tbody>'+ids.map(id=>'<tr><td>'+esc(id+' · '+(P[id]?pdNomeCurto(P[id]):''))+'</td><td class="n">'+fmtI.format(Math.round(e.cons[id]||0))+'</td><td class="n">'+fmtI.format(Math.round(e.res[id]||0))+'</td><td class="n">'+(e.res[id]?fmtI.format(Math.round(e.aloc[id]||0))+(e.aloc[id]<e.res[id]?' <span class="pill bad">falta '+fmtI.format(Math.round(e.res[id]-e.aloc[id]))+'</span>':''):'—')+'</td></tr>').join('')+'</tbody></table>'};
+  el.innerHTML='<div class="row" style="margin-bottom:8px"><h3 class="grow">Empenho de insumos por produto</h3><input type="search" id="empiBusca" value="'+esc(EMPI_Q)+'" placeholder="Buscar insumo, código, fornecedor ou produto" aria-label="Buscar insumo" style="flex:1 1 260px"></div>'
+    +'<div class="chips" id="empiChips" style="margin-bottom:8px">'+[['','Todos ('+L.length+')'],['falta','Faltando ('+nF+')'],['multi','Usados em mais de um produto ('+nM+')'],['sobra','Com saldo livre']].map(([k,t])=>'<button class="chip" data-ef="'+k+'" aria-pressed="'+(EMPI_F===k)+'">'+t+'</button>').join('')+'</div>'
+    +'<p class="note" style="margin-bottom:8px">'+(fonteNotas()?'Disponível = entrou nas NF de entrada das duas empresas − consumido nos produtos já recebidos (recebido × quantidade por unidade).':'Disponível = saldo de insumo da planilha + NF de entrada novas (das duas empresas). Consumido é só informativo (recebido × quantidade por unidade).')+' Empenhado = reservado para o que falta entregar (pedido − recebido), na ordem dos códigos de produto. Clique na linha para ver produto a produto.</p>'
+    +(F.length?'<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table><thead><tr><th>Código</th><th>Insumo</th><th>Fornecedor</th><th class="n">Entrou (notas)</th><th class="n">Consumido</th><th class="n">Disponível</th><th class="n">Empenhado</th><th class="n">Saldo livre</th><th class="n">Produtos</th></tr></thead><tbody>'
+      +F.slice(0,400).map(e=>{const n=new Set(Object.keys(e.cons).concat(Object.keys(e.res))).size;return '<tr class="empiL" style="cursor:pointer"><td class="mono">'+esc(e.cod)+'</td><td>'+esc(e.nome)+'</td><td>'+esc(short(e.forn))+'</td><td class="n">'+fmtI.format(Math.round(e.entrou))+'</td><td class="n">'+fmtI.format(Math.round(e.consT))+'</td><td class="n">'+fmtI.format(Math.round(e.disp))+'</td><td class="n">'+fmtI.format(Math.round(e.resT))+'</td><td class="n">'+(e.livre<0?'<span class="pill bad">falta '+fmtI.format(Math.round(-e.livre))+'</span>':fmtI.format(Math.round(e.livre)))+'</td><td class="n">'+n+'</td></tr><tr class="empiD" hidden><td colspan="9">'+det(e)+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="note">Nada encontrado.</p>')
+    ;
+  const b=$('#empiBusca');if(b)b.oninput=e=>{EMPI_Q=e.target.value;renderEmpInsumos();const nb=$('#empiBusca');nb.focus();nb.setSelectionRange(nb.value.length,nb.value.length)}}
+document.addEventListener('click',e=>{const el=$('#empiPainel');if(!el||!el.contains(e.target))return;const c=e.target.closest('[data-ef]');if(c){EMPI_F=c.dataset.ef;renderEmpInsumos();return}
+  const tr=e.target.closest('tr.empiL');if(tr){const d=tr.nextElementSibling;if(d)d.hidden=!d.hidden}});
 /* cadastro de vínculos: código de insumo da NF -> produto acabado */
 let VINC_Q='';
 function codigosVinculados(){const s=new Set();allProjects().forEach(p=>{comps(p).forEach(c=>{if(c.cod){s.add(String(c.cod));if(/Envase Giudit/i.test(c.nome||''))s.add(c.cod+'MO')}});envDe(p).forEach(c=>s.add(String(c)))});return s}
@@ -815,7 +848,7 @@ const LBL={"inicio": ["Início", "Cia Beauty · projetos licenciados"], "entrega
 function showTab(t){if(!tabs.includes(t))t='inicio';$('#kpis').hidden=t!=='inicio';$('#tabTitle').textContent=t==='inicio'?('Olá'+(window.__NOME?', '+window.__NOME:'')):LBL[t][0]==='Custos'?'Custos':LBL[t][0]==='Produtos'?'Produtos':LBL[t][0]==='Carteira'?'Carteira futura':LBL[t][0]==='Compras'?'Compras de insumos':LBL[t][0]==='Notas XML'?'Notas fiscais (XML)':LBL[t][0]==='Estoque'?'Estoque':LBL[t][0]==='Comercial'?'Comercial':LBL[t][0]==='Vendas'?'Vendas':'Entregas';$('#tabSub').textContent=LBL[t][1];window.scrollTo(0,0);document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));tabs.forEach(x=>$('#tab-'+x).hidden=x!==t);if(location.hash!=='#'+t)history.replaceState(null,'','#'+t);renderAll()}
 document.querySelector('nav.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.tab)});
 window.addEventListener('hashchange',()=>showTab(location.hash.slice(1)));
-function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador')renderSim();if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras'){renderCompras();renderVinculos()}if(t==='notas'){renderNotas();renderEntradas()}if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
+function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador')renderSim();if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras'){renderCompras();renderEmpInsumos();renderVinculos()}if(t==='notas'){renderNotas();renderEntradas()}if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
 document.addEventListener('click',e=>{if(!e.target.closest('.searchbox')){const s=$('#sugg');if(s)s.hidden=true}});
 
 
@@ -908,7 +941,7 @@ function pdPainel(){
     el.innerHTML='<div><div class="eyebrow">'+esc(p.id)+' · '+esc(p.colecao||'')+'</div><h2>'+esc(pdNomeCurto(p))+'</h2></div>'+
       '<div class="pd-kv"><div><small>Custo por unidade</small><b>'+pdR3.format(unit)+'</b></div><div><small>Insumos</small><b>'+k.linhas.length+(k.falta?' <span class="pill bad">'+k.falta+' sem custo</span>':'')+'</b></div><div><small>Lote a produzir</small><b>'+fmtI.format(k.Q)+' un</b></div><div><small>Desembolso do lote</small><b>'+fmtR0.format(k.desemb)+'</b></div></div>'+
       (L.length?'<div><h3 style="margin-bottom:8px">De onde vem o custo</h3><div class="pd-comp">'+L.filter(l=>l.un>0).map(l=>'<i style="--tc:var('+pdTipo(l.c.nome)[1]+');width:'+(l.pct*100).toFixed(2)+'%" title="'+esc(l.c.nome)+'"></i>').join('')+'</div></div><div class="pd-leg">'+L.map(l=>'<div style="--tc:var('+pdTipo(l.c.nome)[1]+')"><i class="sw"></i><span>'+esc(l.c.nome)+'</span><span class="num">'+(l.cu==null?'—':pdR3.format(l.un))+'</span><span class="num muted">'+pdPct.format(l.pct)+'</span></div>').join('')+'</div>':'')+
-      pdPrecoBling(p,unit)+
+      pdRecebBlock(p)+pdPrecoBling(p,unit)+
       '<p class="note">Pedido '+fmtI.format(total(p))+' · recebido '+fmtI.format(p.rec||0)+'. Os números seguem a aba Custos (quantidade e abatimento de estoque definidos lá).</p>'+
       '<div class="row"><button class="btn pri" data-pd="custos">Editar em Custos</button>'+(site?'<a class="btn" href="'+esc(site)+'" target="_blank" rel="noopener">Ver no site</a>':'')+(PD.gestor?'<button class="btn" data-pd="trocarFoto">Trocar foto</button>':'')+'</div>';
     return;
