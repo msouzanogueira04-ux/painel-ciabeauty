@@ -35,7 +35,7 @@ function calc(p){
   const Q=qtd(p),ab=abater(p);let unit=0,desemb=0,bruto=0,falta=0;const linhas=[];
   comps(p).forEach(c=>{
     const coef=+c.coef||0,cu=c.custo==null||c.custo===''?null:+c.custo;
-    const nec=Q*coef,est=ab?Math.min(Math.max((+c.saldo||0)+(XIN[c.cod]||0),0),nec):0,comprar=nec-est;
+    const nec=Q*coef,disp=fonteNotas()?(XIN[c.cod]||0)-(CONS[c.cod]||0):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
     const v=comprar*(cu||0);if(cu==null)falta++;
     unit+=coef*(cu||0);desemb+=v;bruto+=nec*(cu||0);
     linhas.push({c,nec,est,comprar,v,cu});
@@ -279,18 +279,74 @@ async function importFiles(files){
   lsNotas();applyNotas();renderAll();
   msg.textContent=ok+' nota(s) importada(s)'+(dup?' · '+dup+' já estavam no painel':'')+(plan?' · '+plan+' já constam na planilha (não somam de novo)':'')+(bad?' · '+bad+' arquivo(s) não são NF-e válida':'');
 }
+let CFG_ENT={fonte:'planilha',ignorar:[]};let CONS={};
+function fonteNotas(){return CFG_ENT.fonte==='notas'}
+function envDe(p){const o=st(p);return o.envCods||p.envCods||[]}
 function applyNotas(){
-  XIN={};XOUT={};const mes=Object.assign({},MES_BASE),cat={};
+  XIN={};XOUT={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
   Object.values(notas).forEach(n=>{
     if(n.tipo==='saida'){n.itens.forEach(i=>{XOUT[i[0]]=(XOUT[i[0]]||0)+i[3]});return}
-    if(BASE_CH.has(n.chave)||n.cancelada||/STRALOG/i.test(n.emit))return;
+    if((!soNotas&&BASE_CH.has(n.chave))||n.cancelada||/STRALOG/i.test(n.emit))return;
     const m=(n.data||'').slice(0,7);
-    n.itens.forEach(i=>{if(/^[56](202|411)$/.test(i[6]))return;XIN[i[0]]=(XIN[i[0]]||0)+i[3];if(m)mes[m]=(mes[m]||0)+i[5];
+    n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;XIN[i[0]]=(XIN[i[0]]||0)+i[3];if(m)mes[m]=(mes[m]||0)+i[5];
       const k=i[0]+'|'+n.emit;const c=cat[k]||(cat[k]=[i[0],i[1],n.emit,0,i[4],n.data]);c[3]+=i[3];if((n.data||'')>=c[5]){c[4]=i[4];c[5]=n.data}});
   });
-  D.comprasMes=mes;D.catalogo=CAT_BASE.concat(Object.values(cat));
-  D.projetos.forEach(p=>{const cs=p.envCods||[];const ex=cs.length?Math.min(...cs.map(c=>XIN[c]||0)):0;p.rec=p.rec0+ex});
+  D.comprasMes=mes;D.catalogo=(soNotas?[]:CAT_BASE).concat(Object.values(cat));
+  D.projetos.forEach(p=>{const cs=envDe(p);const ex=cs.length?Math.min(...cs.map(c=>XIN[c]||0)):0;p.rec=(soNotas?0:p.rec0)+ex});
+  CONS={};if(soNotas)allProjects().forEach(p=>comps(p).forEach(c=>{if(c.cod)CONS[c.cod]=(CONS[c.cod]||0)+(p.rec||0)*(+c.coef||0)}));
 }
+/* ---------- ENTRADAS: notas do Bling, origem das entradas e cadastro de vínculos (estruturas) ---------- */
+let BLX={rodando:false,feito:false,msg:''};
+async function puxarXmlsBling(){
+  if(BLX.rodando||!db||!window.CIA_XML_LISTA||document.body.classList.contains('ro'))return;BLX.rodando=true;
+  try{const lista=await CIA_XML_LISTA('bling');const falta=lista.filter(k=>!notas[k]);let ok=0;
+    for(const k of falta){try{const x=await CIA_XML(k);const n=parseNFe(x);if(!n||!n.chave)continue;n.importado=new Date().toISOString().slice(0,10);n.origem='bling';notas[n.chave]=n;saveNota(n.chave);ok++;if(ok%25===0){BLX.msg='Trazendo notas do Bling… '+ok+' de '+falta.length;setSave('',BLX.msg)}}catch(e){}}
+    BLX.msg=lista.length?(lista.length+' notas de entrada vindas do Bling'+(ok?' ('+ok+' novas agora)':'')):'Nenhuma nota do Bling ainda';
+    if(ok){lsNotas();applyNotas();renderAll()}setSave('ok','Salvo na nuvem')}
+  catch(e){BLX.msg='Não consegui ler as notas do Bling: '+(e.message||e)}
+  BLX.rodando=false;BLX.feito=true;const el=$('#entBling');if(el)el.textContent=BLX.msg}
+function salvarCfgEnt(){applyNotas();renderAll();if(db)db.doc('cfg/entradas').set(CFG_ENT).catch(()=>setSave('warn','Não salvou a configuração'))}
+function recPorModo(modo){const salvo=CFG_ENT.fonte;CFG_ENT.fonte=modo;applyNotas();const r={};allProjects().forEach(p=>{r[p.id]=p.rec||0});CFG_ENT.fonte=salvo;applyNotas();return r}
+function renderEntradas(){
+  const el=$('#entPainel');if(!el)return;const gestor=['admin','master'].includes(window.CIA_PAPEL?CIA_PAPEL():'');
+  const a=recPorModo('planilha'),b=recPorModo('notas');const ps=allProjects();
+  const dif=ps.filter(p=>(a[p.id]||0)!==(b[p.id]||0));const tA=ps.reduce((s,p)=>s+(a[p.id]||0),0),tB=ps.reduce((s,p)=>s+(b[p.id]||0),0);
+  const nBling=Object.values(notas).filter(n=>n.origem==='bling').length;
+  el.innerHTML='<div class="row" style="margin-bottom:6px"><h3 class="grow">De onde vêm as entradas</h3><span class="note" id="entBling">'+esc(BLX.msg||(nBling?nBling+' notas vindas do Bling':'buscando notas do Bling…'))+'</span></div>'
+    +'<div class="row" style="gap:14px;flex-wrap:wrap"><label class="ck"><input type="radio" name="entFonte" value="planilha"'+(fonteNotas()?'':' checked')+(gestor?'':' disabled')+'> Planilha Geral + notas novas</label><label class="ck"><input type="radio" name="entFonte" value="notas"'+(fonteNotas()?' checked':'')+(gestor?'':' disabled')+'> Só notas fiscais (Bling e XML importado)</label></div>'
+    +'<div class="res" style="margin-top:8px"><div class="box"><div class="eyebrow">Recebido pela planilha</div><div class="v num">'+fmtI.format(tA)+'</div></div><div class="box hl"><div class="eyebrow">Recebido só pelas notas</div><div class="v num">'+fmtI.format(tB)+'</div></div><div class="box"><div class="eyebrow">Projetos com diferença</div><div class="v num">'+dif.length+'</div><div class="note">de '+ps.length+'</div></div></div>'
+    +(dif.length?'<details style="margin-top:6px"><summary class="note" style="cursor:pointer">Ver projetos com diferença</summary><div class="tbl-wrap" style="max-height:320px;overflow:auto;margin-top:6px"><table><thead><tr><th>Projeto</th><th class="n">Pela planilha</th><th class="n">Pelas notas</th><th class="n">Diferença</th><th>Códigos de recebimento</th></tr></thead><tbody>'
+      +dif.sort((x,y)=>Math.abs((b[y.id]||0)-(a[y.id]||0))-Math.abs((b[x.id]||0)-(a[x.id]||0))).map(p=>'<tr><td>'+esc(p.id+' · '+pdNomeCurto(p))+'</td><td class="n">'+fmtI.format(a[p.id]||0)+'</td><td class="n">'+fmtI.format(b[p.id]||0)+'</td><td class="n">'+fmtI.format((b[p.id]||0)-(a[p.id]||0))+'</td><td class="mono note">'+esc(envDe(p).join(', ')||'— sem código')+'</td></tr>').join('')+'</tbody></table></div></details>':'')
+    +'<p class="note">Com "Só notas fiscais", recebido, compras e estoque de insumos passam a sair das NF de entrada (as do Bling chegam sozinhas a cada 30 min). Os códigos que ligam cada nota ao produto ficam no cadastro de vínculos, na aba Compras.</p>';
+}
+document.addEventListener('change',e=>{if(e.target.name==='entFonte'){CFG_ENT.fonte=e.target.value;salvarCfgEnt()}});
+/* cadastro de vínculos: código de insumo da NF -> produto acabado */
+let VINC_Q='';
+function codigosVinculados(){const s=new Set();allProjects().forEach(p=>{comps(p).forEach(c=>{if(c.cod){s.add(String(c.cod));if(/Envase Giudit/i.test(c.nome||''))s.add(c.cod+'MO')}});envDe(p).forEach(c=>s.add(String(c)))});return s}
+function codigosSemVinculo(){const lig=codigosVinculados(),ign=new Set(CFG_ENT.ignorar||[]),m={};
+  Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{const c=String(i[0]||'');if(!c||lig.has(c)||ign.has(c+'|'+short(n.emit))||/^[1256](201|202|410|411|949|915|916)$/.test(i[6]))return;
+    const k=c+'|'+n.emit;const x=m[k]||(m[k]={cod:c,desc:i[1],forn:n.emit,q:0,v:i[4],data:n.data,nf:n.num});x.q+=i[3];if((n.data||'')>=x.data){x.data=n.data;x.v=i[4];x.nf=n.num;x.desc=i[1]}})});
+  return Object.values(m).sort((a,b)=>String(b.data).localeCompare(String(a.data)))}
+function renderVinculos(){const el=$('#vincPainel');if(!el)return;const ro=document.body.classList.contains('ro');const L=codigosSemVinculo();const q=VINC_Q.toLowerCase();
+  const F=L.filter(x=>!q||(x.cod+' '+x.desc+' '+x.forn).toLowerCase().includes(q));
+  const ops=allProjects().slice().sort((a,b)=>(a.colecao||'').localeCompare(b.colecao||'')||a.sku.localeCompare(b.sku)).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.id+' · '+(p.colecao||'')+' · '+pdNomeCurto(p))+'</option>').join('');
+  el.innerHTML='<div class="row" style="margin-bottom:8px"><h3 class="grow">Cadastro de vínculos: códigos das notas sem produto</h3><input type="search" id="vincBusca" value="'+esc(VINC_Q)+'" placeholder="Buscar código, insumo ou fornecedor" aria-label="Buscar código sem vínculo" style="flex:1 1 260px"></div>'
+    +'<p class="note" style="margin-bottom:8px">'+L.length+' código(s) de NF de entrada ainda não estão ligados a nenhum produto acabado. Ligue cada um ao produto: ele entra na estrutura de custo (com o preço da nota) e, se marcar "recebido", passa a contar como produto entregue.</p>'
+    +(F.length?'<div class="tbl-wrap" style="max-height:520px;overflow:auto"><table><thead><tr><th>Código</th><th>Descrição na NF</th><th>Fornecedor</th><th class="n">Qtd</th><th class="n">Últ. preço</th><th>Últ. NF</th>'+(ro?'':'<th>Ligar ao produto</th><th></th>')+'</tr></thead><tbody>'
+      +F.slice(0,300).map((x,i)=>'<tr data-vi="'+i+'"><td class="mono">'+esc(x.cod)+'</td><td>'+esc(x.desc)+'</td><td>'+esc(short(x.forn))+'</td><td class="n">'+fmtI.format(x.q)+'</td><td class="n">'+fmtR.format(x.v)+'</td><td class="note">'+esc(x.nf)+' · '+dBR(x.data)+'</td>'
+        +(ro?'':'<td style="min-width:300px"><select class="vi-p" aria-label="Produto" style="max-width:260px"><option value="">Escolha o produto…</option>'+ops+'</select> <input class="vi-k" type="number" min="0" step="0.0001" value="1" title="Quantidade por unidade do produto" aria-label="Quantidade por unidade" style="width:70px"> <label class="ck note" title="A quantidade desta nota conta como produto recebido"><input type="checkbox" class="vi-r"> recebido</label></td><td><button type="button" class="btn" data-vlig="'+i+'">Ligar</button> <button type="button" class="btn ghost" data-vign="'+i+'" title="Não é insumo de produto (ex.: material de escritório)">Ignorar</button></td>')+'</tr>').join('')+'</tbody></table></div>':'<p class="note">Todos os códigos das notas de entrada já estão ligados a produtos. 👍</p>');
+  el._lista=F;
+  const b=$('#vincBusca');if(b)b.oninput=e=>{VINC_Q=e.target.value;renderVinculos();const nb=$('#vincBusca');nb.focus();nb.setSelectionRange(nb.value.length,nb.value.length)};
+}
+document.addEventListener('click',e=>{const el=$('#vincPainel');if(!el||!el.contains(e.target))return;
+  const lg=e.target.closest('[data-vlig]'),ig=e.target.closest('[data-vign]');
+  if(ig){const x=el._lista[+ig.dataset.vign];CFG_ENT.ignorar=(CFG_ENT.ignorar||[]).concat([x.cod+'|'+short(x.forn)]);salvarCfgEnt();return}
+  if(!lg)return;const tr=lg.closest('tr'),x=el._lista[+lg.dataset.vlig];const pid=tr.querySelector('.vi-p').value,k=+tr.querySelector('.vi-k').value||0,rec=tr.querySelector('.vi-r').checked;
+  if(!pid){tr.querySelector('.vi-p').focus();return}const p=byId(pid);if(!p)return;
+  const o=ov[pid]||(ov[pid]={});o.comps=comps(p).map(c=>Object.assign({},c));
+  o.comps.push({nome:String(x.desc).slice(0,80),cod:x.cod,forn:x.forn,coef:k,custo:x.v,origem:'NF',nota:'ligado pelo cadastro de vínculos (NF '+x.nf+')'});
+  if(rec){o.envCods=envDe(p).concat([x.cod])}
+  persist(pid);applyNotas();renderAll();setSave('ok','Código '+x.cod+' ligado a '+pid)});
 /* ---------- GRUPO ECONÔMICO x EMPRESA (só filtra o que as abas Notas e Vendas mostram) ---------- */
 const soDig=s=>String(s||'').replace(/\D/g,'');
 const fmtCnpj=d=>d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):d;
@@ -759,7 +815,7 @@ const LBL={"inicio": ["Início", "Cia Beauty · projetos licenciados"], "entrega
 function showTab(t){if(!tabs.includes(t))t='inicio';$('#kpis').hidden=t!=='inicio';$('#tabTitle').textContent=t==='inicio'?('Olá'+(window.__NOME?', '+window.__NOME:'')):LBL[t][0]==='Custos'?'Custos':LBL[t][0]==='Produtos'?'Produtos':LBL[t][0]==='Carteira'?'Carteira futura':LBL[t][0]==='Compras'?'Compras de insumos':LBL[t][0]==='Notas XML'?'Notas fiscais (XML)':LBL[t][0]==='Estoque'?'Estoque':LBL[t][0]==='Comercial'?'Comercial':LBL[t][0]==='Vendas'?'Vendas':'Entregas';$('#tabSub').textContent=LBL[t][1];window.scrollTo(0,0);document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));tabs.forEach(x=>$('#tab-'+x).hidden=x!==t);if(location.hash!=='#'+t)history.replaceState(null,'','#'+t);renderAll()}
 document.querySelector('nav.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.tab)});
 window.addEventListener('hashchange',()=>showTab(location.hash.slice(1)));
-function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador')renderSim();if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras')renderCompras();if(t==='notas')renderNotas();if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
+function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador')renderSim();if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras'){renderCompras();renderVinculos()}if(t==='notas'){renderNotas();renderEntradas()}if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
 document.addEventListener('click',e=>{if(!e.target.closest('.searchbox')){const s=$('#sugg');if(s)s.hidden=true}});
 
 
@@ -913,6 +969,8 @@ function auditLine(o){if(!o||!o._em)return '';const n=o._por?(NOMES[o._por]||'')
   db=d;setSave('ok','Salvo na nuvem · base única');
   db.collection('estoque').onSnapshot(snap=>{const L={};let lista=null;snap.docs.forEach(d=>{if(!d.exists)return;const x=JSON.parse(JSON.stringify(d.data()));if(d.id==='_locais')lista=x.lista;else L[d.id==='atual'?'stralog':d.id]=x});
     if(lista&&lista.length)LOCAIS=lista;Object.keys(L).forEach(id=>{if(!LOCAIS.some(l=>l.id===id))LOCAIS.push({id,nome:id})});estLocais=L;combinarEstoque();lsEst();renderAll()},()=>{});
+  db.doc('cfg/entradas').onSnapshot(s=>{if(s.exists){const x=JSON.parse(JSON.stringify(s.data()));CFG_ENT=Object.assign({fonte:'planilha',ignorar:[]},x);applyNotas();renderAll()}},()=>{});
+  setTimeout(()=>puxarXmlsBling(),4000);
   db.doc('bling/precos').onSnapshot(s=>{BL.precos=s.exists?JSON.parse(JSON.stringify(s.data())):null;if(!$('#tab-produtos').hidden&&PD.cur)pdPainel()},()=>{});
   db.collection('pedidos').onSnapshot(snap=>{const P={};snap.docs.forEach(d=>{if(d.exists)P[d.id]=JSON.parse(JSON.stringify(d.data()))});pedidos=P;EMPENHO=null;lsPed();renderAll()},()=>{});
   db.collection('vendas').onSnapshot(snap=>{const L={};snap.docs.forEach(d=>{if(!d.exists)return;const x=d.data();const l=L[x.lote]||(L[x.lote]={arquivo:x.arquivo,importado:x.importado,partes:x.partes,empresa:x.empresa||'',serie:x.serie||'',linhas:[],_p:{}});l._p[x.parte]=x.linhas});

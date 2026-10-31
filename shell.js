@@ -18,6 +18,7 @@
   const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
   window.CIA_FN = async (nome, body) => { const { data, error } = await sb.functions.invoke(nome, { body }); if (error) { let m = error.message; try { const j = await error.context.json(); if (j && j.erro) m = j.erro; } catch (e) { /* */ } throw new Error(m); } if (data && data.erro) throw new Error(data.erro); return data; };
   window.CIA_PAPEL = () => (PERFIL && PERFIL.papel) || '';
+  window.CIA_XML_LISTA = async (origem) => { let all = [], de = 0; for (;;) { const { data, error } = await sb.from('notas_xml').select('chave').eq('origem', origem).range(de, de + 999); if (error) throw error; all = all.concat((data || []).map((r) => r.chave)); if (!data || data.length < 1000) break; de += 1000; } return all; };
   let USER = null, PERFIL = null, recuperando = CONVITE;
   const ehAdmin = () => !!PERFIL && PERFIL.papel === 'admin';
   const ehGestor = () => !!PERFIL && ['admin', 'master'].includes(PERFIL.papel);

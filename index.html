@@ -454,6 +454,7 @@ body{font-size:14px}
       <div class="panel"><h3>Compras por mês (NF de entrada)</h3><div class="note" style="margin-bottom:8px">Sem remessas da Stralog.</div><div id="chartMes" style="overflow-x:auto"></div></div>
       <div class="panel"><h3 style="margin-bottom:10px">Maiores fornecedores</h3><div id="topForn" class="hbar"></div></div>
     </div>
+    <div class="panel" id="vincPainel" style="margin-top:16px"></div>
     <div style="margin-top:16px">
       <div class="row" style="margin-bottom:10px"><h3 class="grow">Catálogo de insumos comprados</h3><input type="search" id="catSearch" placeholder="Buscar insumo, código ou fornecedor" aria-label="Buscar insumo" style="flex:1 1 280px"></div>
       <div class="tbl-wrap" style="max-height:520px;overflow:auto"><table id="catTbl"></table></div>
@@ -462,6 +463,7 @@ body{font-size:14px}
   </section>
   <!-- NOTAS -->
   <section id="tab-notas" hidden>
+    <div class="panel" id="entPainel" style="margin-bottom:14px"></div>
     <label class="drop" id="drop" for="fileIn">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/></svg>
       <b>Arraste aqui os XMLs de NF-e, de entrada ou de saída</b>
@@ -670,7 +672,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261031c"></script>
-<script src="shell.js?v=20261031c"></script>
+<script src="config.js?v=20261031d"></script>
+<script src="shell.js?v=20261031d"></script>
 </body>
 </html>
