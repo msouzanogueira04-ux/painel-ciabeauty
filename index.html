@@ -403,6 +403,7 @@ body{font-size:14px}
 
   <!-- SIMULADOR -->
   <section id="tab-simulador" hidden>
+    <div class="note" id="sinaisSim" hidden style="margin-bottom:8px;color:var(--bad,#b42318)"></div>
     <div class="sim">
       <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
         <input type="search" id="simSearch" placeholder="Filtrar projetos" aria-label="Filtrar projetos">
@@ -454,6 +455,7 @@ body{font-size:14px}
       <div class="panel"><h3>Compras por mês (NF de entrada)</h3><div class="note" style="margin-bottom:8px">Sem remessas da Stralog.</div><div id="chartMes" style="overflow-x:auto"></div></div>
       <div class="panel"><h3 style="margin-bottom:10px">Maiores fornecedores</h3><div id="topForn" class="hbar"></div></div>
     </div>
+    <div class="panel" id="sinaisPainel" style="margin-top:16px" hidden></div>
     <div class="panel" id="empiPainel" style="margin-top:16px"></div>
     <div class="panel" id="vincPainel" style="margin-top:16px"></div>
     <div style="margin-top:16px">
@@ -682,7 +684,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261031i"></script>
-<script src="shell.js?v=20261031i"></script>
+<script src="config.js?v=20261031k"></script>
+<script src="shell.js?v=20261031k"></script>
 </body>
 </html>
