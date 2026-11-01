@@ -319,19 +319,22 @@ let CFG_ENT={fonte:'planilha',ignorar:[]};let CONS={},ENT_ALL={},EMP_INS={},ALOC
 function fonteNotas(){return CFG_ENT.fonte==='notas'}
 function envDe(p){const o=st(p);return o.envCods||p.envCods||[]}
 function estInsumo(cod){let ea=null;try{ea=estoqueAtual}catch(x){}const k=normK0(cod);const it=ea&&ea.itens?ea.itens.find(i=>normK0(i.cod)===k):null;return{qtd:it?(+it.qtd||0):0,loc:it?it.loc||{}:{}}}
+/* entregue por notas: em cada nota vale a maior qtd entre os códigos de recebimento (produto e MO são o mesmo lote); soma entre notas — assim códigos diferentes em entregas diferentes somam */
+function idxAdd(ix,cod,ch,q){const k=normK0(cod);if(!k)return;const m=ix[k]||(ix[k]={});m[ch]=(m[ch]||0)+q}
+function entregaIdx(ix,cs){const por={};cs.map(normK0).forEach(c=>{const m=ix[c];if(!m)return;Object.entries(m).forEach(([ch,q])=>{if(q>(por[ch]||0))por[ch]=q})});return Object.values(por).reduce((a,b)=>a+b,0)}
 function normK0(s){return String(s==null?'':s).trim().toUpperCase()}
 function applyNotas(){
-  XIN={};XOUT={};ENT_ALL={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
+  XIN={};XOUT={};ENT_ALL={};const NIX={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
   Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;ENT_ALL[i[0]]=(ENT_ALL[i[0]]||0)+i[3]})});
   Object.values(notas).forEach(n=>{
     if(n.tipo==='saida'){n.itens.forEach(i=>{XOUT[i[0]]=(XOUT[i[0]]||0)+i[3]});return}
     if((!soNotas&&BASE_CH.has(n.chave))||n.cancelada||/STRALOG/i.test(n.emit))return;
     const m=(n.data||'').slice(0,7);
-    n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;XIN[i[0]]=(XIN[i[0]]||0)+i[3];if(m)mes[m]=(mes[m]||0)+i[5];
+    n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;XIN[i[0]]=(XIN[i[0]]||0)+i[3];idxAdd(NIX,i[0],n.chave||n.num,+i[3]||0);if(m)mes[m]=(mes[m]||0)+i[5];
       const k=i[0]+'|'+n.emit;const c=cat[k]||(cat[k]=[i[0],i[1],n.emit,0,i[4],n.data]);c[3]+=i[3];if((n.data||'')>=c[5]){c[4]=i[4];c[5]=n.data}});
   });
   D.comprasMes=mes;D.catalogo=(soNotas?[]:CAT_BASE).concat(Object.values(cat));
-  D.projetos.forEach(p=>{const cs=envDe(p);const ex=cs.length?Math.min(...cs.map(c=>XIN[c]||0)):0;p.rec=(soNotas?0:p.rec0)+ex});
+  D.projetos.forEach(p=>{const cs=envDe(p);const ex=cs.length?entregaIdx(NIX,cs):0;p.rec=(soNotas?0:p.rec0)+ex});
   CONS={};EMP_INS={};ALOC={};
   const ps=allProjects();
   ps.forEach(p=>comps(p).forEach(c=>{if(!c.cod||c.cod==='?'||servico(c))return;const k=String(c.cod);const coef=+c.coef||0;const e=EMP_INS[k]||(EMP_INS[k]={cod:k,nome:c.nome||'',forn:c.forn||'',entrou:ENT_ALL[k]||0,saldoPl:0,cons:{},res:{}});e.saldoPl=Math.max(e.saldoPl,+c.saldo||0);
@@ -582,14 +585,15 @@ let LOCAIS=[{id:'stralog',nome:'Stralog'},{id:'pedrovoss',nome:'Galpão Pedro Vo
 const LSE2='ciab-estoque-v2';const locDoc=id=>id==='stralog'?'atual':id;const locNome=id=>(LOCAIS.find(l=>l.id===id)||{nome:id}).nome;
 try{const r=localStorage.getItem(LSE2);if(r){const o=JSON.parse(r)||{};estLocais=o.locais||{};if(o.lista&&o.lista.length)LOCAIS=o.lista}else if(estoqueAtual&&estoqueAtual.itens)estLocais={stralog:estoqueAtual}}catch(e){}
 /* local automático: entregas das NF de entrada da We Premium − saídas da We (vendas, remessas) */
+function autoDet(l,cod){if(!l.auto)return '';const e=estLocais[l.id];const it=e&&e.itens&&e.itens.find(i=>i.cod===cod);if(!it)return '';return '<div class="note" style="white-space:nowrap" title="Entrou = soma das NF de entrada pelos códigos de recebimento ('+esc(it.cods||'')+'). Saiu = vendas, remessas e outras saídas da empresa.">entrou '+fmtI.format(it.entregue)+(it.devol?' + dev. '+fmtI.format(it.devol):'')+'<br>saiu '+fmtI.format(it.saidas)+'</div>'}
 const VIRT=[{id:'entregas_we',nome:'Entregas NF We (informativo)',auto:true,re:/we\s*premium/i,emp:'We'},{id:'entregas_cr',nome:'Entregas NF Creative (informativo)',auto:true,re:/creative/i,emp:'Creative'}];
-function calcEntregas(V){const RE=V.re;let N={};try{N=notas||{}}catch(x){return null}const ent={},dev={},sai={};
+function calcEntregas(V){const RE=V.re;let N={};try{N=notas||{}}catch(x){return null}const ent={},dev={},sai={},EIX={};
   Object.values(N).forEach(n=>{if(!n||n.cancelada||!n.itens)return;
-    if(n.tipo==='entrada'&&RE.test(n.dest||'')&&!/STRALOG/i.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(!k)return;if(/^[12](201|202|410|411)$/.test(String(i[6]||'')))dev[k]=(dev[k]||0)+(+i[3]||0);else ent[k]=(ent[k]||0)+(+i[3]||0)});
+    if(n.tipo==='entrada'&&RE.test(n.dest||'')&&!/STRALOG/i.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(!k)return;if(/^[12](201|202|410|411)$/.test(String(i[6]||'')))dev[k]=(dev[k]||0)+(+i[3]||0);else{ent[k]=(ent[k]||0)+(+i[3]||0);idxAdd(EIX,k,n.chave||n.num,+i[3]||0)}});
     else if(n.tipo==='saida'&&RE.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(k)sai[k]=(sai[k]||0)+(+i[3]||0)})});
   const itens=[];let ps=[];try{ps=allProjects()}catch(x){}
-  ps.forEach(p=>{const cod=normK0(p.codigo);if(!cod)return;const cs=envDe(p).map(normK0);const viaEnv=cs.length?Math.min(...cs.map(c=>ent[c]||0)):0;const entregue=viaEnv+(cs.includes(cod)?0:(ent[cod]||0));if(!entregue)return;
-    const q=entregue+(dev[cod]||0)-(sai[cod]||0);itens.push({cod,desc:p.sku||'',qtd:Math.max(0,Math.round(q)),entregue:Math.round(entregue),devol:Math.round(dev[cod]||0),saidas:Math.round(sai[cod]||0),lotes:[]})});
+  ps.forEach(p=>{const cod=normK0(p.codigo);if(!cod)return;const cs=envDe(p).map(normK0);const viaEnv=cs.length?entregaIdx(EIX,cs):0;const entregue=viaEnv+(cs.includes(cod)?0:(ent[cod]||0));if(!entregue)return;
+    const q=entregue+(dev[cod]||0)-(sai[cod]||0);itens.push({cod,desc:p.sku||'',qtd:Math.max(0,Math.round(q)),entregue:Math.round(entregue),devol:Math.round(dev[cod]||0),saidas:Math.round(sai[cod]||0),cods:cs.join(', '),lotes:[]})});
   return {arquivo:'informativo, fora do total: entregue nas NF de entrada da '+V.emp+' − saídas da '+V.emp,data:hojeISO(),itens,auto:true}}
 function combinarEstoque(){const ag={};let data='';const arqs=[];
   VIRT.forEach(V=>{const ix=LOCAIS.findIndex(l=>l.id===V.id);if(ix<0)LOCAIS.push({id:V.id,nome:V.nome,auto:true});else LOCAIS[ix]={id:V.id,nome:V.nome,auto:true};const ew=calcEntregas(V);if(ew)estLocais[V.id]=ew});
@@ -708,7 +712,7 @@ function renderEstoque(){
   const F=rows.filter(r=>(!s2||(r.i.cod+' '+r.i.desc+' '+(r.p?r.p.colecao+' '+r.p.sku:'')).toLowerCase().includes(s2))&&(!estFiltro||(estFiltro==='proj'?r.p:estFiltro==='rup'?r.st[0]==='bad':estFiltro==='emp'?r.emp||r.falta:estFiltro.startsWith('loc:')?(r.i.loc&&r.i.loc[estFiltro.slice(4)]):r.st[1].startsWith('Parado'))))
     .sort((a,b)=>b.falta-a.falta||(a.cob==null)-(b.cob==null)||(a.cob||0)-(b.cob||0));
   $('#estTbl').innerHTML='<thead><tr><th>Código</th><th>Produto</th><th>Coleção</th>'+LOCAIS.map(l=>'<th class="n">'+esc(l.nome)+'</th>').join('')+'<th class="n">Total</th><th class="n">Empenhado</th><th class="n">Disponível</th><th class="n">Venda/mês</th><th class="n">Cobertura</th><th>Situação</th><th>Lotes</th></tr></thead><tbody>'
-    +F.slice(0,700).map(r=>'<tr><td class="mono">'+esc(r.i.cod)+'</td><td>'+esc(r.p?r.p.sku:r.i.desc)+'</td><td>'+esc(r.p?r.p.colecao:'—')+'</td>'+LOCAIS.map(l=>'<td class="n">'+(r.i.loc&&r.i.loc[l.id]!=null?fmtI.format(r.i.loc[l.id]):'—')+'</td>').join('')+'<td class="n"><b>'+fmtI.format(r.i.qtd)+'</b></td><td class="n">'+(r.emp?fmtI.format(r.emp):'—')+'</td><td class="n">'+fmtI.format(r.disp)+(r.falta?' <span class="pill bad">falta '+fmtI.format(r.falta)+'</span>':'')+'</td><td class="n">'+(r.m?fmtI.format(Math.round(r.m)):'—')+'</td><td class="n">'+(r.cob==null?'—':r.cob.toFixed(1).replace('.',',')+' mês')+'</td><td><span class="pill '+r.st[0]+'">'+r.st[1]+'</span></td><td class="note">'+(r.i.lotes&&r.i.lotes.length?esc(r.i.lotes.slice(0,3).map(l=>l[0]+(l[2]?' (val. '+dBR(l[2])+')':'')).join(', ')+(r.i.lotes.length>3?'…':'')):'')+'</td></tr>').join('')+'</tbody>';
+    +F.slice(0,700).map(r=>'<tr><td class="mono">'+esc(r.i.cod)+'</td><td>'+esc(r.p?r.p.sku:r.i.desc)+'</td><td>'+esc(r.p?r.p.colecao:'—')+'</td>'+LOCAIS.map(l=>'<td class="n">'+(r.i.loc&&r.i.loc[l.id]!=null?fmtI.format(r.i.loc[l.id]):'—')+autoDet(l,r.i.cod)+'</td>').join('')+'<td class="n"><b>'+fmtI.format(r.i.qtd)+'</b></td><td class="n">'+(r.emp?fmtI.format(r.emp):'—')+'</td><td class="n">'+fmtI.format(r.disp)+(r.falta?' <span class="pill bad">falta '+fmtI.format(r.falta)+'</span>':'')+'</td><td class="n">'+(r.m?fmtI.format(Math.round(r.m)):'—')+'</td><td class="n">'+(r.cob==null?'—':r.cob.toFixed(1).replace('.',',')+' mês')+'</td><td><span class="pill '+r.st[0]+'">'+r.st[1]+'</span></td><td class="note">'+(r.i.lotes&&r.i.lotes.length?esc(r.i.lotes.slice(0,3).map(l=>l[0]+(l[2]?' (val. '+dBR(l[2])+')':'')).join(', ')+(r.i.lotes.length>3?'…':'')):'')+'</td></tr>').join('')+'</tbody>';
   $('#estLocChips').innerHTML=LOCAIS.map(l=>'<button class="chip" data-f="loc:'+esc(l.id)+'" aria-pressed="'+(estFiltro==='loc:'+l.id)+'">Só '+esc(l.nome)+'</button>').join('');
 }
 function ligaEstoqueLocais(){
