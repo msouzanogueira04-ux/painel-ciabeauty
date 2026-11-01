@@ -58,7 +58,8 @@ function persist(id){
     chain=chain.then(()=>db.collection('projetos').doc(id).set(body)).then(()=>{delete timers[id];setSave('ok','Salvo na nuvem · '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))}).catch(e=>{setSave('warn','Não salvou na nuvem — ficou neste navegador')});
   },700);
 }
-function setOv(p,patch){ov[p.id]=Object.assign({},ov[p.id]||{},patch);persist(p.id);renderAll()}
+const EDIT={};
+function setOv(p,patch){ov[p.id]=Object.assign({},ov[p.id]||{},patch);if(EDIT[p.id]&&Object.keys(patch).every(k=>k==='comps')){lsSave();renderAll();return}persist(p.id);renderAll()}
 
 /* ---------- KPIs ---------- */
 function renderKpis(){
@@ -120,19 +121,22 @@ function renderEditor(){
    +'<div class="box"><div class="eyebrow">Economia com estoque</div><div class="v num">'+fmtR0.format(c.bruto-c.desemb)+'</div></div></div>';
   if(c.semEstrutura)h+='<div class="callout">Este projeto ainda não tem estrutura de custo. Busque os insumos no catálogo de NFs abaixo, adicione uma linha manual ou copie a estrutura de um produto parecido.</div>';
   else if(c.falta)h+='<div class="callout">'+c.falta+' insumo(s) sem custo unitário — preencha para o total ficar completo.</div>';
+  const ed=!!EDIT[p.id],dis=ed?'':' disabled';
+  h+='<div class="row" style="margin:6px 0 10px;gap:8px">'+(document.body.classList.contains('ro')?'':ed?'<span class="pill warn">Editando — alterações ainda não salvas</span><span class="grow"></span><button class="btn" id="edCancel">Cancelar</button><button class="btn pri" id="edSave">Salvar estrutura</button>':'<span class="pill neu">🔒 Estrutura travada</span><span class="grow"></span><button class="btn" id="edOpen">✎ Editar estrutura</button>')+'</div>';
   if(comps(p).some(x=>x.auto)&&!o.comps)h+='<div class="note" style="margin-bottom:8px">Estrutura inicial montada com o preço de envase das NFs da Giudit (matéria-prima + mão de obra). Adicione frasco, rótulo, cartucho e caixa para fechar o custo.</div>';
   h+='<div class="tbl-wrap ed"><table><thead><tr><th>Insumo</th><th>Fornecedor</th><th class="n">Qtd/un</th><th class="n">Custo un. (R$)</th><th class="n">Estoque</th><th class="n">Necessidade</th><th class="n">Comprar</th><th class="n">Desembolso</th><th></th></tr></thead><tbody>';
-  c.linhas.forEach((l,i)=>{h+='<tr><td><input type="text" data-i="'+i+'" data-f="nome" value="'+esc(l.c.nome)+'" aria-label="Insumo"><div class="note"><span class="mono">'+esc(l.c.cod||'')+'</span> '+origemPill(l.c)+(l.c.nota?' · '+esc(l.c.nota):'')+'</div></td><td class="note">'+esc(short(l.c.forn))+'</td>'
-    +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="coef" value="'+l.c.coef+'" style="width:70px" aria-label="Quantidade por unidade"></td>'
-    +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="custo" value="'+(l.cu==null?'':l.cu)+'" placeholder="?" aria-label="Custo unitário"></td>'
-    +'<td class="n"><input type="number" step="1" data-i="'+i+'" data-f="saldo" value="'+(+l.c.saldo||0)+'" aria-label="Estoque"></td>'
-    +'<td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n">'+fmtR.format(l.v)+'</td><td><button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button></td></tr>'});
+  c.linhas.forEach((l,i)=>{h+='<tr><td><input type="text" data-i="'+i+'" data-f="nome" value="'+esc(l.c.nome)+'" aria-label="Insumo"'+dis+'><div class="note"><span class="mono">'+esc(l.c.cod||'')+'</span> '+origemPill(l.c)+(l.c.nota?' · '+esc(l.c.nota):'')+'</div></td><td class="note">'+esc(short(l.c.forn))+'</td>'
+    +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="coef" value="'+l.c.coef+'" style="width:70px" aria-label="Quantidade por unidade"'+dis+'></td>'
+    +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="custo" value="'+(l.cu==null?'':l.cu)+'" placeholder="?" aria-label="Custo unitário"'+dis+'></td>'
+    +'<td class="n"><input type="number" step="1" data-i="'+i+'" data-f="saldo" value="'+(+l.c.saldo||0)+'" aria-label="Estoque" title="Ajuste manual de estoque (planilha)"'+dis+'>'+(()=>{const e=EMP_INS[String(l.c.cod||'')];if(!e)return '';const nn=fonteNotas()?e.entrou:(XIN[e.cod]||0);return '<div class="note" style="white-space:nowrap;text-align:right">'+(nn?'+'+fmtI.format(Math.round(nn))+' das notas · ':'')+'disp. '+fmtI.format(Math.round(e.disp))+'<br>empenhado '+fmtI.format(Math.round(e.resT))+' · '+(e.livre<0?'<b style="color:var(--bad)">falta '+fmtI.format(Math.round(-e.livre))+'</b>':'livre '+fmtI.format(Math.round(e.livre)))+'</div>'})()+'</td>'
+    +'<td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n">'+fmtR.format(l.v)+'</td><td>'+(ed?'<button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button>':'')+'</td></tr>'});
   if(!c.linhas.length)h+='<tr><td colspan="9" class="muted">Nenhum insumo ainda.</td></tr>';
   h+='</tbody><tfoot><tr><td colspan="7">Total</td><td class="n">'+fmtR.format(c.desemb)+'</td><td></td></tr></tfoot></table></div>';
-  h+='<div class="row" style="margin-top:12px"><div class="searchbox grow" style="min-width:240px"><input type="search" id="addSearch" placeholder="Adicionar insumo do catálogo de NFs (ex.: frasco 200ml, rótulo, caixa)" style="width:100%" autocomplete="off" aria-label="Adicionar insumo"><div class="sugg" id="sugg" hidden></div></div>'
+  if(ed)h+='<div class="row" style="margin-top:12px"><div class="searchbox grow" style="min-width:240px"><input type="search" id="addSearch" placeholder="Adicionar insumo: busque nos insumos cadastrados e no catálogo de NFs (ex.: frasco 200ml, rótulo, caixa)" style="width:100%" autocomplete="off" aria-label="Adicionar insumo"><div class="sugg" id="sugg" hidden></div></div>'
    +'<button class="btn" id="addManual">+ Linha manual</button>'
    +(copyOpts?'<select id="copyFrom" aria-label="Copiar estrutura"><option value="">Copiar estrutura de…</option>'+copyOpts+'</select>':'')
    +(o.comps||o.qtd!=null?'<button class="btn ghost" id="resetP">Restaurar original</button>':'')+'</div>';
+  else h+='<p class="note" style="margin-top:10px">Para incluir, trocar ou remover insumos, clique em <b>✎ Editar estrutura</b>. Nada é salvo até clicar em <b>Salvar estrutura</b>.</p>';
   h+='<p class="note">Necessidade = quantidade × qtd/un. Comprar = necessidade − estoque disponível. O estoque inicial vem da aba Estruturas (recebido − consumido); nos demais itens, informe o que tem na Stralog.</p>';
   $('#editor').innerHTML=h;
 }
@@ -146,6 +150,10 @@ ed.addEventListener('change',e=>{const p=byId(cur);const t=e.target;
   if(t.dataset.f){const i=+t.dataset.i,f=t.dataset.f;editComps(p,a=>{a[i][f]=f==='nome'?t.value:(t.value===''?(f==='custo'?null:0):+t.value)})}
 });
 ed.addEventListener('click',e=>{const p=byId(cur);const t=e.target.closest('button');if(!t)return;
+  if(t.id==='edOpen'){EDIT[p.id]={snap:ov[p.id]?JSON.parse(JSON.stringify(ov[p.id])):null};renderEditor();return}
+  if(t.id==='edCancel'){const s0=EDIT[p.id];delete EDIT[p.id];if(s0){if(s0.snap)ov[p.id]=s0.snap;else delete ov[p.id]}lsSave();renderAll();return}
+  if(t.id==='edSave'){delete EDIT[p.id];persist(p.id);renderAll();setSave('ok','Estrutura de '+(p.codigo||p.sku)+' salva');return}
+  if(t.dataset.ins!=null){const r=INS_LISTA[+t.dataset.ins];editComps(p,a=>a.push({nome:r.nome,cod:r.cod,forn:r.forn,custo:r.custo,coef:1,saldo:0,origem:r.origem||'NF'}));return}
   if(t.dataset.q!=null){setOv(p,{qtd:+t.dataset.q});return}
   if(t.dataset.del!=null){editComps(p,a=>a.splice(+t.dataset.del,1));return}
   if(t.id==='addManual'){editComps(p,a=>a.push({nome:'Novo insumo',cod:'',forn:'',custo:null,coef:1,saldo:0}));return}
@@ -155,11 +163,17 @@ ed.addEventListener('click',e=>{const p=byId(cur);const t=e.target.closest('butt
 });
 ed.addEventListener('input',e=>{if(e.target.id!=='addSearch')return;const q=e.target.value.trim().toLowerCase(),box=$('#sugg');
   if(q.length<2){box.hidden=true;return}
-  const terms=q.split(/\s+/);const hits=[];
-  D.catalogo.forEach((r,i)=>{const s=(r[0]+' '+r[1]+' '+r[2]).toLowerCase();if(terms.every(t=>s.includes(t)))hits.push(i)});
-  box.innerHTML=hits.slice(0,40).map(i=>{const r=D.catalogo[i];return '<button data-cat="'+i+'"><div>'+esc(r[1])+'</div><div class="note mono">'+esc(r[0])+' · '+esc(short(r[2]))+' · '+fmtR.format(r[4])+' · '+fmtI.format(r[3])+' un compradas</div></button>'}).join('')||'<div class="note" style="padding:8px 10px">Nada encontrado. Use "+ Linha manual".</div>';
+  const terms=semAc(q).split(/\s+/);const hits=[];
+  INS_LISTA=insumosCadastrados();const insHits=[];INS_LISTA.forEach((r,i)=>{const s=semAc(r.cod+' '+r.nome+' '+r.forn);if(terms.every(t=>s.includes(t)))insHits.push(i)});
+  const ja=new Set(insHits.map(i=>INS_LISTA[i].cod).filter(Boolean));
+  D.catalogo.forEach((r,i)=>{if(ja.has(String(r[0])))return;const s=semAc(r[0]+' '+r[1]+' '+r[2]);if(terms.every(t=>s.includes(t)))hits.push(i)});
+  box.innerHTML=(insHits.length?'<div class="note" style="padding:6px 10px 2px"><b>Insumos já cadastrados</b></div>':'')+insHits.slice(0,25).map(i=>{const r=INS_LISTA[i];return '<button data-ins="'+i+'"><div>'+esc(r.nome)+'</div><div class="note mono">'+esc(r.cod||'sem código')+' · '+esc(short(r.forn)||'—')+' · '+(r.custo==null?'sem custo':fmtR.format(r.custo))+' · usado em '+r.n+' produto(s)</div></button>'}).join('')
+    +(hits.length?'<div class="note" style="padding:6px 10px 2px"><b>Catálogo das notas fiscais</b></div>':'')+hits.slice(0,30).map(i=>{const r=D.catalogo[i];return '<button data-cat="'+i+'"><div>'+esc(r[1])+'</div><div class="note mono">'+esc(r[0])+' · '+esc(short(r[2]))+' · '+fmtR.format(r[4])+' · '+fmtI.format(r[3])+' un compradas</div></button>'}).join('')
+    ||'<div class="note" style="padding:8px 10px">Nada encontrado. Use "+ Linha manual".</div>';
   box.hidden=false;
 });
+let INS_LISTA=[];
+function insumosCadastrados(){const m={};allProjects().forEach(p=>comps(p).forEach(c=>{const k=(c.cod&&c.cod!=='?')?'c:'+c.cod:'n:'+semAc(c.nome);const x=m[k]||(m[k]={nome:c.nome||'',cod:(c.cod&&c.cod!=='?')?String(c.cod):'',forn:c.forn||'',custo:c.custo==null||c.custo===''?null:+c.custo,origem:c.origem,n:0,ps:new Set()});if(!x.ps.has(p.id)){x.ps.add(p.id);x.n++}if(x.custo==null&&c.custo!=null&&c.custo!=='')x.custo=+c.custo}));return Object.values(m).sort((a,b)=>b.n-a.n)}
 function renderSim(){renderPlist();renderEditor()}
 
 /* novo projeto */
@@ -1038,7 +1052,7 @@ function auditLine(o){if(!o||!o._em)return '';const n=o._por?(NOMES[o._por]||'')
   db.collection('projetos').onSnapshot(snap=>{
     const next={};snap.docs.forEach(doc=>{if(doc.exists)next[doc.id]=JSON.parse(JSON.stringify(doc.data()))});
     // mantém edições locais ainda não enviadas
-    Object.keys(timers).forEach(k=>{if(ov[k])next[k]=ov[k]});
+    Object.keys(timers).concat(Object.keys(EDIT)).forEach(k=>{if(ov[k])next[k]=ov[k]});
     if(snap.empty&&Object.keys(ov).length){Object.keys(ov).forEach(k=>persist(k));return}
     ov=next;lsSave();
     const active=document.activeElement;if(active&&active.closest&&active.closest('#editor')&&active.tagName==='INPUT')return;
