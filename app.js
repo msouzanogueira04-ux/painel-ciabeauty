@@ -1,3 +1,4 @@
+var COMB_RUN=false;
 var MYID=null,USERNS=null,NOMES={};
 /* Painel de Projetos Cia Beauty — app */
 (function(){
@@ -337,6 +338,7 @@ function applyNotas(){
     const cq=produzido(p)*coef,rq=aProduzir(p)*coef;if(cq)e.cons[p.id]=(e.cons[p.id]||0)+cq;if(rq)e.res[p.id]=(e.res[p.id]||0)+rq;CONS[k]=(CONS[k]||0)+cq}));
   Object.values(EMP_INS).forEach(e=>{e.consT=Object.values(e.cons).reduce((a,b)=>a+b,0);e.resT=Object.values(e.res).reduce((a,b)=>a+b,0);e.mont=(soNotas||!e.saldoPl)?e.entrou-e.consT:e.saldoPl+(XIN[e.cod]||0);e.loc=estInsumo(e.cod);e.semEntrada=e.mont<0;e.disp=Math.max(0,e.mont)+e.loc.qtd;let livre=e.disp;e.aloc={};
     Object.keys(e.res).sort((a,b)=>a.localeCompare(b)).forEach(pid=>{const q=Math.min(e.res[pid],livre);livre-=q;e.aloc[pid]=q;(ALOC[pid]=ALOC[pid]||{})[e.cod]=q});e.livre=e.disp-e.resT});
+  if(!COMB_RUN){COMB_RUN=true;try{combinarEstoque()}catch(x){}COMB_RUN=false}
 }
 /* ---------- ENTRADAS: notas do Bling, origem das entradas e cadastro de vínculos (estruturas) ---------- */
 let BLX={rodando:false,feito:false,msg:''};
@@ -579,16 +581,28 @@ let EMPENHO=null;
 let LOCAIS=[{id:'stralog',nome:'Stralog'},{id:'pedrovoss',nome:'Galpão Pedro Voss'}];let estLocais={};
 const LSE2='ciab-estoque-v2';const locDoc=id=>id==='stralog'?'atual':id;const locNome=id=>(LOCAIS.find(l=>l.id===id)||{nome:id}).nome;
 try{const r=localStorage.getItem(LSE2);if(r){const o=JSON.parse(r)||{};estLocais=o.locais||{};if(o.lista&&o.lista.length)LOCAIS=o.lista}else if(estoqueAtual&&estoqueAtual.itens)estLocais={stralog:estoqueAtual}}catch(e){}
+/* local automático: entregas das NF de entrada da We Premium − saídas da We (vendas, remessas) */
+const VIRT=[{id:'entregas_we',nome:'Entregas NF We',auto:true,re:/we\s*premium/i,emp:'We'},{id:'entregas_cr',nome:'Entregas NF Creative',auto:true,re:/creative/i,emp:'Creative'}];
+function calcEntregas(V){const RE=V.re;let N={};try{N=notas||{}}catch(x){return null}const ent={},dev={},sai={};
+  Object.values(N).forEach(n=>{if(!n||n.cancelada||!n.itens)return;
+    if(n.tipo==='entrada'&&RE.test(n.dest||'')&&!/STRALOG/i.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(!k)return;if(/^[12](201|202|410|411)$/.test(String(i[6]||'')))dev[k]=(dev[k]||0)+(+i[3]||0);else ent[k]=(ent[k]||0)+(+i[3]||0)});
+    else if(n.tipo==='saida'&&RE.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(k)sai[k]=(sai[k]||0)+(+i[3]||0)})});
+  const itens=[];let ps=[];try{ps=allProjects()}catch(x){}
+  ps.forEach(p=>{const cod=normK0(p.codigo);if(!cod)return;const cs=envDe(p).map(normK0);const viaEnv=cs.length?Math.min(...cs.map(c=>ent[c]||0)):0;const entregue=viaEnv+(cs.includes(cod)?0:(ent[cod]||0));if(!entregue)return;
+    const q=entregue+(dev[cod]||0)-(sai[cod]||0);itens.push({cod,desc:p.sku||'',qtd:Math.max(0,Math.round(q)),entregue:Math.round(entregue),devol:Math.round(dev[cod]||0),saidas:Math.round(sai[cod]||0),lotes:[]})});
+  return {arquivo:'automático: entregue nas NF de entrada da '+V.emp+' − saídas da '+V.emp,data:hojeISO(),itens,auto:true}}
 function combinarEstoque(){const ag={};let data='';const arqs=[];
+  VIRT.forEach(V=>{if(!LOCAIS.some(l=>l.id===V.id))LOCAIS.push({id:V.id,nome:V.nome,auto:true});const ew=calcEntregas(V);if(ew)estLocais[V.id]=ew});
   LOCAIS.forEach(L=>{const e=estLocais[L.id];if(!e||!e.itens)return;if((e.data||'')>data)data=e.data||'';arqs.push(L.nome+': '+(e.arquivo||'lançamento manual'));
     e.itens.forEach(i=>{const a=ag[i.cod]||(ag[i.cod]={cod:i.cod,desc:'',qtd:0,loc:{},lotes:[]});a.qtd+=+i.qtd||0;a.loc[L.id]=(a.loc[L.id]||0)+(+i.qtd||0);if(!a.desc&&i.desc)a.desc=i.desc;(i.lotes||[]).forEach(l=>{if(a.lotes.length<20)a.lotes.push(l)})})});
-  estoqueAtual=arqs.length?{arquivo:arqs.join(' · '),data:data||hojeISO(),itens:Object.values(ag)}:null;EMPENHO=null;try{applyNotas()}catch(x){}}
+  estoqueAtual=arqs.length?{arquivo:arqs.join(' · '),data:data||hojeISO(),itens:Object.values(ag)}:null;EMPENHO=null;if(!COMB_RUN){COMB_RUN=true;try{applyNotas()}catch(x){}COMB_RUN=false}}
 function hojeISO(){return new Date().toISOString().slice(0,10)}
-function lsEst(){try{localStorage.setItem(LSE2,JSON.stringify({lista:LOCAIS,locais:estLocais}))}catch(e){}}
+const semVirt=()=>LOCAIS.filter(l=>!l.auto);const locSemVirt=()=>{const o=Object.assign({},estLocais);VIRT.forEach(V=>delete o[V.id]);return o};
+function lsEst(){try{localStorage.setItem(LSE2,JSON.stringify({lista:semVirt(),locais:locSemVirt()}))}catch(e){}}
 function salvarLocal(id){combinarEstoque();lsEst();renderAll();if(!db)return;setSave('','Salvando estoque…');
   const d=estLocais[id];const ref=db.doc('estoque/'+locDoc(id));(d?ref.set(d):ref.delete()).then(()=>setSave('ok','Estoque salvo')).catch(()=>setSave('warn','Estoque ficou só neste navegador'))}
-function salvarLocais(){lsEst();if(db)db.doc('estoque/_locais').set({lista:LOCAIS}).catch(()=>{})}
-function selLocais(){['#estLocal','#estAjLoc'].forEach(s=>{const el=$(s);if(!el)return;const v=el.value;el.innerHTML=LOCAIS.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.nome)+'</option>').join('');if(LOCAIS.some(l=>l.id===v))el.value=v})}
+function salvarLocais(){lsEst();if(db)db.doc('estoque/_locais').set({lista:semVirt()}).catch(()=>{})}
+function selLocais(){['#estLocal','#estAjLoc'].forEach(s=>{const el=$(s);if(!el)return;const v=el.value;el.innerHTML=semVirt().map(l=>'<option value="'+esc(l.id)+'">'+esc(l.nome)+'</option>').join('');if(semVirt().some(l=>l.id===v))el.value=v})}
 combinarEstoque();
 const normK=s=>String(s==null?'':s).trim().toUpperCase();
 function num(v){if(typeof v==='number')return v;let s=String(v==null?'':v).trim().replace(/[R$\s]/g,'');if(!s)return 0;if(/,\d{1,4}$/.test(s))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,/g,'');const n=parseFloat(s);return isNaN(n)?0:n}
@@ -953,7 +967,7 @@ function renderInicio(){
   if(E&&rup)P.push(['bad',rup+' produto(s) em ruptura ou zerados','pela média de venda dos últimos 3 meses','estoque']);
   {const{res}=calcEmpenho();const f=Object.entries(pedidos).filter(([id,p])=>p.status==='aberto'&&p.tipo==='pedido'&&res[id].st[0]!=='ok');if(f.length)P.push(['bad',f.length+' pedido(s) de venda sem estoque suficiente',f.slice(0,4).map(([,p])=>p.numero+(p.cliente?' '+p.cliente:'')).join(' · '),'comercial'])}
   {const ns=sinaisAbertos().length;if(ns)P.push(['warn',ns+' insumo(s) sinalizado(s) como errado(s)','indicações de insumo correto para ajustar nas estruturas','compras'])}
-  LOCAIS.filter(l=>!estLocais[l.id]).forEach(l=>P.push(['neu','Estoque '+l.nome+' ainda não alimentado','importe a planilha ou lance as quantidades na aba Estoque','estoque']));
+  semVirt().filter(l=>!estLocais[l.id]).forEach(l=>P.push(['neu','Estoque '+l.nome+' ainda não alimentado','importe a planilha ou lance as quantidades na aba Estoque','estoque']));
   if(!L.length)P.push(['neu','Vendas ainda não importadas','relatório do Bling ou dos marketplaces','vendas']);
   $('#homePend').innerHTML=P.map(x=>'<button data-go="'+x[3]+'"'+(x[4]?' data-pid="'+esc(x[4])+'"':'')+'><span class="pill '+x[0]+'">'+({bad:'urgente',warn:'atenção',neu:'info'})[x[0]]+'</span><span><b style="font-weight:600">'+esc(x[1])+'</b><br><span class="note">'+esc(x[2])+'</span></span></button>').join('')||'<p class="note">Nada pendente.</p>';
   $('#homeBase').textContent='Base: planilha Geral 29.10 + NFs de entrada até '+D.atualizado+'.';
