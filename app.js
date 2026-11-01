@@ -28,14 +28,17 @@ function st(p){return ov[p.id]||{}}
 function comps(p){const o=st(p);return o.comps||p.comps||[]}
 function total(p){return (p.p1||0)+(p.p2||0)}
 function saldoEnt(p){return Math.max(0,total(p)-(p.rec||0))}
-function qtd(p){const o=st(p);return o.qtd!=null?o.qtd:saldoEnt(p)}
+/* 1º pedido já começou a ser entregue => conta como produzido; o que falta produzir é o 2º pedido */
+function produzido(p){const r=p.rec||0;return r>0?Math.min(total(p),Math.max(r,p.p1||0)):0}
+function aProduzir(p){return Math.max(0,total(p)-produzido(p))}
+function qtd(p){const o=st(p);return o.qtd!=null?o.qtd:aProduzir(p)}
 function abater(p){const o=st(p);return o.abater!=null?o.abater:true}
 function incluir(p){const o=st(p);return o.incluir!=null?o.incluir:qtd(p)>0}
 function calc(p){
   const Q=qtd(p),ab=abater(p);let unit=0,desemb=0,bruto=0,falta=0;const linhas=[];
   comps(p).forEach(c=>{
     const coef=+c.coef||0,cu=c.custo==null||c.custo===''?null:+c.custo;
-    const nec=Q*coef,disp=(fonteNotas()||(EMP_INS[c.cod]&&!EMP_INS[c.cod].saldoPl&&!(+c.saldo)))?((ALOC[p.id]||{})[c.cod]||0):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
+    const nec=Q*coef,disp=EMP_INS[c.cod]?((ALOC[p.id]||{})[c.cod]||0):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
     const v=comprar*(cu||0);if(cu==null)falta++;
     unit+=coef*(cu||0);desemb+=v;bruto+=nec*(cu||0);
     linhas.push({c,nec,est,comprar,v,cu});
@@ -128,7 +131,10 @@ function renderEditor(){
   c.linhas.forEach((l,i)=>{h+='<tr><td><input type="text" data-i="'+i+'" data-f="nome" value="'+esc(l.c.nome)+'" aria-label="Insumo"'+dis+'><div class="note"><span class="mono">'+esc(l.c.cod||'')+'</span> '+origemPill(l.c)+(l.c.nota?' · '+esc(l.c.nota):'')+sinalPill(p.id,l.c)+'</div></td><td class="note">'+esc(short(l.c.forn))+'</td>'
     +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="coef" value="'+l.c.coef+'" style="width:70px" aria-label="Quantidade por unidade"'+dis+'></td>'
     +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="custo" value="'+(l.cu==null?'':l.cu)+'" placeholder="?" aria-label="Custo unitário"'+dis+'></td>'
-    +'<td class="n"><input type="number" step="1" data-i="'+i+'" data-f="saldo" value="'+(+l.c.saldo||0)+'" aria-label="Estoque" title="Ajuste manual de estoque (planilha)"'+dis+'>'+(()=>{const e=EMP_INS[String(l.c.cod||'')];if(!e)return '';const nn=fonteNotas()?e.entrou:(XIN[e.cod]||0);return '<div class="note" style="white-space:nowrap;text-align:right">'+(nn?'+'+fmtI.format(Math.round(nn))+' das notas · ':'')+'disp. '+fmtI.format(Math.round(e.disp))+'<br>empenhado '+fmtI.format(Math.round(e.resT))+' · '+(e.livre<0?'<b style="color:var(--bad)">falta '+fmtI.format(Math.round(-e.livre))+'</b>':'livre '+fmtI.format(Math.round(e.livre)))+'</div>'})()+'</td>'
+    +'<td class="n"><input type="number" step="1" data-i="'+i+'" data-f="saldo" value="'+(+l.c.saldo||0)+'" aria-label="Estoque" title="Ajuste manual de estoque (planilha)"'+dis+'>'+(()=>{const e=EMP_INS[String(l.c.cod||'')];if(!e)return '';const lc=Object.entries(e.loc.loc||{}).filter(([,q])=>q).map(([k,q])=>locNome(k)+' '+fmtI.format(Math.round(q))).join(' · ');
+      return '<div class="note" style="white-space:nowrap;text-align:right" title="Montagem = entrou pelas notas/planilha − consumido no que já foi produzido (1º pedido). Depósitos = Bling + Stralog + Galpão e demais locais.">'
+      +(e.semEntrada?'<span style="color:var(--warn,#b54708)">montagem sem nota de entrada</span>':'montagem '+fmtI.format(Math.round(e.mont)))+(e.loc.qtd?' + depósitos '+fmtI.format(Math.round(e.loc.qtd)):'')
+      +'<br><b>tenho '+fmtI.format(Math.round(e.disp))+'</b> · 2º pedido/a produzir '+fmtI.format(Math.round(e.resT))+'<br>'+(e.livre<0?'<b style="color:var(--bad)">comprar '+fmtI.format(Math.round(-e.livre))+'</b>':'<span style="color:var(--ok)">sobra '+fmtI.format(Math.round(e.livre))+'</span>')+(lc?'<br>'+esc(lc):'')+'</div>'})()+'</td>'
     +'<td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n">'+fmtR.format(l.v)+'</td><td style="white-space:nowrap">'+(document.body.classList.contains('ro')?'':'<button class="btn ghost" data-sinal="'+i+'" title="Sinalizar: este insumo está errado / indicar o insumo correto" aria-label="Sinalizar insumo">⚑</button>')+(ed?'<button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button>':'')+'</td></tr>'});
   if(!c.linhas.length)h+='<tr><td colspan="9" class="muted">Nenhum insumo ainda.</td></tr>';
   h+='</tbody><tfoot><tr><td colspan="7">Total</td><td class="n">'+fmtR.format(c.desemb)+'</td><td></td></tr></tfoot></table></div>';
@@ -297,6 +303,8 @@ async function importFiles(files){
 let CFG_ENT={fonte:'planilha',ignorar:[]};let CONS={},ENT_ALL={},EMP_INS={},ALOC={};
 function fonteNotas(){return CFG_ENT.fonte==='notas'}
 function envDe(p){const o=st(p);return o.envCods||p.envCods||[]}
+function estInsumo(cod){let ea=null;try{ea=estoqueAtual}catch(x){}const k=normK0(cod);const it=ea&&ea.itens?ea.itens.find(i=>normK0(i.cod)===k):null;return{qtd:it?(+it.qtd||0):0,loc:it?it.loc||{}:{}}}
+function normK0(s){return String(s==null?'':s).trim().toUpperCase()}
 function applyNotas(){
   XIN={};XOUT={};ENT_ALL={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
   Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;ENT_ALL[i[0]]=(ENT_ALL[i[0]]||0)+i[3]})});
@@ -312,8 +320,8 @@ function applyNotas(){
   CONS={};EMP_INS={};ALOC={};
   const ps=allProjects();
   ps.forEach(p=>comps(p).forEach(c=>{if(!c.cod||c.cod==='?')return;const k=String(c.cod);const coef=+c.coef||0;const e=EMP_INS[k]||(EMP_INS[k]={cod:k,nome:c.nome||'',forn:c.forn||'',entrou:ENT_ALL[k]||0,saldoPl:0,cons:{},res:{}});e.saldoPl=Math.max(e.saldoPl,+c.saldo||0);
-    const cq=(p.rec||0)*coef,rq=Math.max(0,total(p)-(p.rec||0))*coef;if(cq)e.cons[p.id]=(e.cons[p.id]||0)+cq;if(rq)e.res[p.id]=(e.res[p.id]||0)+rq;CONS[k]=(CONS[k]||0)+cq}));
-  Object.values(EMP_INS).forEach(e=>{e.consT=Object.values(e.cons).reduce((a,b)=>a+b,0);e.resT=Object.values(e.res).reduce((a,b)=>a+b,0);e.disp=(soNotas||!e.saldoPl)?e.entrou-e.consT:e.saldoPl+(XIN[e.cod]||0);let livre=Math.max(0,e.disp);e.aloc={};
+    const cq=produzido(p)*coef,rq=aProduzir(p)*coef;if(cq)e.cons[p.id]=(e.cons[p.id]||0)+cq;if(rq)e.res[p.id]=(e.res[p.id]||0)+rq;CONS[k]=(CONS[k]||0)+cq}));
+  Object.values(EMP_INS).forEach(e=>{e.consT=Object.values(e.cons).reduce((a,b)=>a+b,0);e.resT=Object.values(e.res).reduce((a,b)=>a+b,0);e.mont=(soNotas||!e.saldoPl)?e.entrou-e.consT:e.saldoPl+(XIN[e.cod]||0);e.loc=estInsumo(e.cod);e.semEntrada=e.mont<0;e.disp=Math.max(0,e.mont)+e.loc.qtd;let livre=e.disp;e.aloc={};
     Object.keys(e.res).sort((a,b)=>a.localeCompare(b)).forEach(pid=>{const q=Math.min(e.res[pid],livre);livre-=q;e.aloc[pid]=q;(ALOC[pid]=ALOC[pid]||{})[e.cod]=q});e.livre=e.disp-e.resT});
 }
 /* ---------- ENTRADAS: notas do Bling, origem das entradas e cadastro de vínculos (estruturas) ---------- */
@@ -361,7 +369,7 @@ function renderEmpInsumos(){const el=$('#empiPainel');if(!el)return;const P={};a
   const det=e=>{const ids=[...new Set(Object.keys(e.cons).concat(Object.keys(e.res)))].sort();return '<table style="margin:4px 0 2px"><thead><tr><th>Produto</th><th class="n">Consumido</th><th class="n">Empenhado</th><th class="n">Coberto pelo saldo</th></tr></thead><tbody>'+ids.map(id=>'<tr><td>'+esc(id+' · '+(P[id]?pdNomeCurto(P[id]):''))+'</td><td class="n">'+fmtI.format(Math.round(e.cons[id]||0))+'</td><td class="n">'+fmtI.format(Math.round(e.res[id]||0))+'</td><td class="n">'+(e.res[id]?fmtI.format(Math.round(e.aloc[id]||0))+(e.aloc[id]<e.res[id]?' <span class="pill bad">falta '+fmtI.format(Math.round(e.res[id]-e.aloc[id]))+'</span>':''):'—')+'</td></tr>').join('')+'</tbody></table>'};
   el.innerHTML='<div class="row" style="margin-bottom:8px"><h3 class="grow">Empenho de insumos por produto</h3><input type="search" id="empiBusca" value="'+esc(EMPI_Q)+'" placeholder="Buscar insumo, código, fornecedor ou produto" aria-label="Buscar insumo" style="flex:1 1 260px"></div>'
     +'<div class="chips" id="empiChips" style="margin-bottom:8px">'+[['','Todos ('+L.length+')'],['falta','Faltando ('+nF+')'],['multi','Usados em mais de um produto ('+nM+')'],['sobra','Com saldo livre']].map(([k,t])=>'<button class="chip" data-ef="'+k+'" aria-pressed="'+(EMPI_F===k)+'">'+t+'</button>').join('')+'</div>'
-    +'<p class="note" style="margin-bottom:8px">'+(fonteNotas()?'Disponível = entrou nas NF de entrada das duas empresas − consumido nos produtos já recebidos (recebido × quantidade por unidade).':'Disponível = saldo de insumo da planilha + NF de entrada novas; para insumos que não estão na planilha, disponível = tudo que entrou nas NF (das duas empresas) − consumido nos produtos já recebidos.')+' Empenhado = reservado para o que falta entregar (pedido − recebido), na ordem dos códigos de produto. Clique na linha para ver produto a produto.</p>'
+    +'<p class="note" style="margin-bottom:8px">Tenho = insumo na montagem (entrou pelas notas/planilha − consumido no que já foi produzido) + saldo nos depósitos (Bling, Stralog, Galpão e demais locais). O 1º pedido conta como produzido assim que começa a ser entregue; empenhado = o que falta produzir (2º pedido), na ordem dos códigos de produto. Clique na linha para ver produto a produto.</p>'
     +(F.length?'<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table><thead><tr><th>Código</th><th>Insumo</th><th>Fornecedor</th><th class="n">Entrou (notas)</th><th class="n">Consumido</th><th class="n">Disponível</th><th class="n">Empenhado</th><th class="n">Saldo livre</th><th class="n">Produtos</th></tr></thead><tbody>'
       +F.slice(0,400).map(e=>{const n=new Set(Object.keys(e.cons).concat(Object.keys(e.res))).size;return '<tr class="empiL" style="cursor:pointer"><td class="mono">'+esc(e.cod)+'</td><td>'+esc(e.nome)+'</td><td>'+esc(short(e.forn))+'</td><td class="n">'+fmtI.format(Math.round(e.entrou))+'</td><td class="n">'+fmtI.format(Math.round(e.consT))+'</td><td class="n">'+fmtI.format(Math.round(e.disp))+'</td><td class="n">'+fmtI.format(Math.round(e.resT))+'</td><td class="n">'+(e.livre<0?'<span class="pill bad">falta '+fmtI.format(Math.round(-e.livre))+'</span>':fmtI.format(Math.round(e.livre)))+'</td><td class="n">'+n+'</td></tr><tr class="empiD" hidden><td colspan="9">'+det(e)+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="note">Nada encontrado.</p>')
     ;
@@ -521,7 +529,7 @@ try{const r=localStorage.getItem(LSE2);if(r){const o=JSON.parse(r)||{};estLocais
 function combinarEstoque(){const ag={};let data='';const arqs=[];
   LOCAIS.forEach(L=>{const e=estLocais[L.id];if(!e||!e.itens)return;if((e.data||'')>data)data=e.data||'';arqs.push(L.nome+': '+(e.arquivo||'lançamento manual'));
     e.itens.forEach(i=>{const a=ag[i.cod]||(ag[i.cod]={cod:i.cod,desc:'',qtd:0,loc:{},lotes:[]});a.qtd+=+i.qtd||0;a.loc[L.id]=(a.loc[L.id]||0)+(+i.qtd||0);if(!a.desc&&i.desc)a.desc=i.desc;(i.lotes||[]).forEach(l=>{if(a.lotes.length<20)a.lotes.push(l)})})});
-  estoqueAtual=arqs.length?{arquivo:arqs.join(' · '),data:data||hojeISO(),itens:Object.values(ag)}:null;EMPENHO=null}
+  estoqueAtual=arqs.length?{arquivo:arqs.join(' · '),data:data||hojeISO(),itens:Object.values(ag)}:null;EMPENHO=null;try{applyNotas()}catch(x){}}
 function hojeISO(){return new Date().toISOString().slice(0,10)}
 function lsEst(){try{localStorage.setItem(LSE2,JSON.stringify({lista:LOCAIS,locais:estLocais}))}catch(e){}}
 function salvarLocal(id){combinarEstoque();lsEst();renderAll();if(!db)return;setSave('','Salvando estoque…');
