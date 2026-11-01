@@ -208,6 +208,7 @@ svg text{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
 .who .av{width:26px;height:26px;border-radius:50%;background:var(--pink);color:#1A1A1A;display:grid;place-items:center;font-weight:700;font-size:.75rem;flex:none}
 .ro .drop,.ro #btnNovo,.ro [data-del],.ro [data-rm],.ro [data-tg],.ro #addManual,.ro #venLimpar,.ro #resetP,.ro #delProj,.ro .searchbox,.ro #copyFrom{display:none!important}
 .ro #editor input,.ro #cartTbl input{pointer-events:none;opacity:.75}
+.ro .blcad-row{display:none}
 .audit{font-size:.78rem;color:var(--muted);margin-top:4px}
 
 html,body{margin:0}
@@ -455,6 +456,7 @@ body{font-size:14px}
       <div class="panel"><h3>Compras por mês (NF de entrada)</h3><div class="note" style="margin-bottom:8px">Sem remessas da Stralog.</div><div id="chartMes" style="overflow-x:auto"></div></div>
       <div class="panel"><h3 style="margin-bottom:10px">Maiores fornecedores</h3><div id="topForn" class="hbar"></div></div>
     </div>
+    <div class="row blcad-row" style="margin-top:16px;gap:8px"><span class="grow note">Cadastre direto no Bling da We Premium e/ou da Creative</span><button class="btn" data-blcad="produto">+ Cadastrar insumo no Bling</button><button class="btn" data-blcad="contato">+ Cadastrar cliente/fornecedor no Bling</button></div>
     <div class="panel" id="sinaisPainel" style="margin-top:16px" hidden></div>
     <div class="panel" id="empiPainel" style="margin-top:16px"></div>
     <div class="panel" id="vincPainel" style="margin-top:16px"></div>
@@ -509,6 +511,7 @@ body{font-size:14px}
   </section>
   <!-- COMERCIAL -->
   <section id="tab-comercial" hidden>
+    <div class="row blcad-row" style="margin-bottom:12px;gap:8px"><span class="grow note">Cliente novo? Cadastre direto no Bling da We Premium e/ou da Creative</span><button class="btn" data-blcad="contato">+ Cadastrar cliente no Bling</button><button class="btn" data-blcad="produto">+ Cadastrar insumo/produto no Bling</button></div>
     <label class="drop" id="comDrop" for="comIn">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/></svg>
       <b>Arraste a planilha de pedidos de venda ou de propostas comerciais do Bling (Excel ou CSV)</b>
@@ -684,7 +687,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261031q"></script>
-<script src="shell.js?v=20261031q"></script>
+<script src="config.js?v=20261031r"></script>
+<script src="shell.js?v=20261031r"></script>
 </body>
 </html>

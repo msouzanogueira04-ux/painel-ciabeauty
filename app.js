@@ -391,6 +391,44 @@ function renderEmpInsumos(){const el=$('#empiPainel');if(!el)return;const P={};a
   const b=$('#empiBusca');if(b)b.oninput=e=>{EMPI_Q=e.target.value;renderEmpInsumos();const nb=$('#empiBusca');nb.focus();nb.setSelectionRange(nb.value.length,nb.value.length)}}
 document.addEventListener('click',e=>{const el=$('#empiPainel');if(!el||!el.contains(e.target))return;const c=e.target.closest('[data-ef]');if(c){EMPI_F=c.dataset.ef;renderEmpInsumos();return}
   const tr=e.target.closest('tr.empiL');if(tr){const d=tr.nextElementSibling;if(d)d.hidden=!d.hidden}});
+/* cadastro direto no Bling: insumo/produto e cliente/fornecedor (We Premium e/ou Creative) */
+function abrirCadBling(tipo,pre){if(document.body.classList.contains('ro'))return;let m=$('#blCadModal');
+  if(!m){document.body.insertAdjacentHTML('beforeend','<div class="modal" id="blCadModal" hidden><form class="panel" id="blCadForm" style="width:min(640px,100%);max-height:92vh;overflow:auto"><h2 id="bcTit"></h2><div class="row" style="gap:14px;margin:4px 0 10px"><b class="note">Cadastrar no Bling da:</b><label class="chk"><input type="checkbox" name="bcEmp" value="we" checked> We Premium</label><label class="chk"><input type="checkbox" name="bcEmp" value="cr" checked> Creative</label></div><div id="bcCampos"></div><p class="note" id="bcMsg" role="status"></p><div class="row" style="justify-content:flex-end;gap:8px"><button type="button" class="btn" id="bcFechar">Fechar</button><button class="btn pri" id="bcEnviar">Cadastrar no Bling</button></div></form></div>');m=$('#blCadModal');
+    $('#bcFechar').onclick=()=>{m.hidden=true};m.addEventListener('click',e=>{if(e.target===m)m.hidden=true});
+    $('#blCadForm').addEventListener('submit',enviarCadBling);
+    $('#blCadForm').addEventListener('change',e=>{if(e.target.name==='documento')buscarCNPJ(e.target.value);if(e.target.name==='cep')buscarCEP(e.target.value)})}
+  const F=(n,l,ph,t,w)=>'<label style="flex:'+(w||1)+' 1 '+(w?w*120:160)+'px">'+l+'<input name="'+n+'" type="'+(t||'text')+'"'+(t==='number'?' step="0.0001" min="0"':'')+' placeholder="'+esc(ph||'')+'"></label>';
+  const R=a=>'<div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">'+a.join('')+'</div>';
+  m._tipo=tipo;$('#bcTit').textContent=tipo==='produto'?'Cadastrar insumo / produto no Bling':'Cadastrar cliente / fornecedor no Bling';
+  $('#bcCampos').innerHTML=tipo==='produto'
+    ?R([F('nome','Nome *','Ex.: Frasco PET 200ml transparente 24/410','text',3)])+R([F('codigo','Código (SKU) *','Ex.: INS-FR200'),F('unidade','Unidade','UN'),F('gtin','GTIN / EAN','opcional')])
+      +R([F('ncm','NCM','Ex.: 39233000'),F('origem','Origem','0','number'),F('peso','Peso (kg)','0,010','number'),F('preco','Preço de venda','0','number')])
+      +'<h3 style="margin:10px 0 4px">Fornecedor e preço de compra</h3><p class="note" style="margin:0 0 6px">Opcional. O fornecedor precisa já estar cadastrado no Bling daquela empresa.</p>'
+      +R([F('fornecedor','Fornecedor (nome)','Ex.: Siem Tecnologia','text',2),F('fornDoc','CNPJ do fornecedor','só números')])+R([F('precoCompra','Preço de compra (R$)','0,00','number'),F('codForn','Código no fornecedor','opcional')])
+      +R([F('obs','Observação','','text',3)])
+    :R([F('documento','CNPJ / CPF','só números — preenche sozinho se for CNPJ'),F('ie','Inscrição estadual','em branco = não contribuinte')])+R([F('nome','Razão social / nome *','','text',2),F('fantasia','Nome fantasia','')])
+      +R([F('email','E-mail',''),F('telefone','Telefone',''),F('celular','Celular','')])
+      +R([F('cep','CEP',''),F('endereco','Endereço','','text',2),F('numero','Nº','')])+R([F('complemento','Complemento',''),F('bairro','Bairro',''),F('municipio','Cidade',''),F('uf','UF','SP')])
+      +R([F('obs','Observação','','text',3)]);
+  Object.entries(pre||{}).forEach(([k,v])=>{const i=$('#bcCampos [name="'+k+'"]');if(i&&v!=null)i.value=v});
+  $('#bcMsg').textContent='';$('#bcEnviar').disabled=false;m.hidden=false;const f=$('#bcCampos input');if(f)f.focus()}
+function bcSet(k,v){const i=$('#bcCampos [name="'+k+'"]');if(i&&v&&!i.value)i.value=v}
+async function buscarCNPJ(v){const d=String(v||'').replace(/\D/g,'');if(d.length!==14)return;$('#bcMsg').textContent='Buscando CNPJ…';
+  try{const r=await fetch('https://brasilapi.com.br/api/cnpj/v1/'+d);if(!r.ok)throw 0;const j=await r.json();bcSet('nome',j.razao_social);bcSet('fantasia',j.nome_fantasia);bcSet('cep',j.cep);bcSet('endereco',[j.descricao_tipo_de_logradouro,j.logradouro].filter(Boolean).join(' '));bcSet('numero',j.numero);bcSet('complemento',j.complemento);bcSet('bairro',j.bairro);bcSet('municipio',j.municipio);bcSet('uf',j.uf);bcSet('email',j.email);bcSet('telefone',j.ddd_telefone_1);$('#bcMsg').textContent='Dados do CNPJ preenchidos — confira antes de cadastrar.'}catch(e){$('#bcMsg').textContent='Não achei esse CNPJ na Receita; preencha à mão.'}}
+async function buscarCEP(v){const d=String(v||'').replace(/\D/g,'');if(d.length!==8)return;try{const r=await fetch('https://brasilapi.com.br/api/cep/v1/'+d);if(!r.ok)return;const j=await r.json();bcSet('endereco',j.street);bcSet('bairro',j.neighborhood);bcSet('municipio',j.city);bcSet('uf',j.state)}catch(e){}}
+async function enviarCadBling(e){e.preventDefault();const m=$('#blCadModal');const emps=[...document.querySelectorAll('[name=bcEmp]:checked')].map(x=>x.value);
+  if(!emps.length){$('#bcMsg').textContent='Marque pelo menos uma empresa.';return}
+  const dados={};document.querySelectorAll('#bcCampos input').forEach(i=>{dados[i.name]=i.type==='number'?num(i.value):i.value.trim()});
+  if(!dados.nome||(m._tipo==='produto'&&!dados.codigo)){$('#bcMsg').textContent=m._tipo==='produto'?'Preencha nome e código.':'Preencha o nome.';return}
+  if(!window.CIA_FN){$('#bcMsg').textContent='Entre no painel online para cadastrar no Bling.';return}
+  const b=$('#bcEnviar');b.disabled=true;$('#bcMsg').textContent='Enviando para o Bling…';
+  try{const r=await CIA_FN('bling-sync',{acao:m._tipo==='produto'?'criarProduto':'criarContato',empresas:emps,dados});
+    const nm=x=>x==='we'?'We Premium':'Creative';
+    const linhas=(r.resultado||[]).map(x=>nm(x.empresa)+': '+(x.erro?'❌ '+x.erro:x.ja?'já existia no Bling (não duplicou)':'✅ cadastrado'+(x.forn?' · fornecedor: '+x.forn:'')));
+    $('#bcMsg').innerHTML=linhas.map(esc).join('<br>');const ok=(r.resultado||[]).every(x=>!x.erro);
+    if(ok){setSave('ok',(m._tipo==='produto'?'Insumo':'Cadastro')+' enviado ao Bling');b.textContent='Cadastrar outro';b.disabled=false;b.onclick=ev=>{ev.preventDefault();b.onclick=null;b.textContent='Cadastrar no Bling';abrirCadBling(m._tipo)}}else b.disabled=false}
+  catch(err){$('#bcMsg').textContent='Não foi: '+(err.message||err)+(/scope|escopo|permiss|insufficient/i.test(err.message||'')?' — o app do Bling precisa da permissão de Produtos/Contatos (editar).':'');b.disabled=false}}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-blcad]');if(b)abrirCadBling(b.dataset.blcad)});
 /* sinalizar insumo errado / indicar o correto */
 let SINAIS={};
 function renderSinaisSim(){const el=$('#sinaisSim');if(!el)return;const n=sinaisAbertos().length;el.hidden=!n;el.innerHTML=n?'⚑ '+n+' insumo(s) sinalizado(s) aguardando correção — veja a lista na aba Compras. ':''}
