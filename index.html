@@ -472,9 +472,9 @@ body{font-size:14px}
     <label class="drop" id="drop" for="fileIn">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/></svg>
       <b>Arraste aqui os XMLs de NF-e, de entrada ou de saída</b>
-      <span class="note">Aceita vários arquivos .xml ou o .zip exportado do Bling. Nota para We Premium, Cia Beauty ou Creative vira entrada; nota emitida por elas para clientes vira saída.</span>
+      <span class="note">Aceita vários arquivos .xml, o .zip exportado do Bling ou a planilha "Planilha_XML_NFe" (.xlsx com abas Notas e Itens). Notas que já estão no painel são puladas. Nota para We Premium, Cia Beauty ou Creative vira entrada; nota emitida por elas para clientes vira saída.</span>
       <span class="btn pri">Escolher arquivos</span>
-      <input type="file" id="fileIn" accept=".xml,.zip,text/xml,application/zip" multiple hidden>
+      <input type="file" id="fileIn" accept=".xml,.zip,.xlsx,text/xml,application/zip" multiple hidden>
     </label>
     <p class="note" id="impMsg" aria-live="polite"></p>
     <div class="row empRow"><span class="eyebrow">Ver por</span><div class="chips" id="notaEmp" role="group" aria-label="Empresa"></div></div>
@@ -687,7 +687,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261101e"></script>
-<script src="shell.js?v=20261101e"></script>
+<script src="config.js?v=20261101f"></script>
+<script src="shell.js?v=20261101f"></script>
 </body>
 </html>

@@ -296,6 +296,22 @@ function parseNFe(txt){
 const qN=[];let qBusy=false;
 function saveNota(ch){if(!db){lsNotas();return}qN.push(ch);if(!qBusy)pump()}
 async function pump(){qBusy=true;while(qN.length){const ch=qN.shift();try{const b=userDoc(ch);if(b){if((b.xml||'').length>200000)b.xml='';await db.collection('notas').doc(ch).set(b)}else await db.collection('notas').doc(ch).delete();setSave('ok','Notas salvas')}catch(e){setSave('warn','Notas ficaram só neste navegador');lsNotas()}}qBusy=false;lsNotas()}
+/* planilha "Planilha_XML_NFe" (abas Notas e Itens): vira nota no painel, pulando as que já existem pela chave */
+async function planilhaNFe(f){
+  if(!window.XLSX)throw new Error('leitor de planilha não carregou');
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});const sN=wb.Sheets['Notas'],sI=wb.Sheets['Itens'];if(!sN||!sI)return{ok:0,dup:0,plan:0,bad:1};
+  const N=XLSX.utils.sheet_to_json(sN,{defval:''}),I=XLSX.utils.sheet_to_json(sI,{defval:''});const its={};
+  I.forEach(r=>{const ch=String(r['Chave de Acesso']||'').replace(/\D/g,'');if(ch.length!==44)return;(its[ch]=its[ch]||[]).push([String(r['Código']||'').trim(),String(r['Descrição']||'').slice(0,120),String(r['Unid.']||''),num(r['Qtd']),num(r['Valor Unit.']),num(r['Valor Total']),String(r['CFOP']||'').replace(/\D/g,'')])});
+  let ok=0,dup=0,plan=0,bad=0;
+  N.forEach(r=>{const ch=String(r['Chave de Acesso']||'').replace(/\D/g,'');if(ch.length!==44){bad++;return}if(notas[ch]){dup++;return}
+    const emit=String(r['Emitente']||''),dest=String(r['Destinatário']||''),tp=/entrada/i.test(r['Tipo']||'')?'0':'1';
+    const n={chave:ch,num:String(r['Número']||''),serie:String(r['Série']||''),data:dataISO(r['Data Emissão']),natOp:String(r['Natureza da Operação']||'').slice(0,60),tpNF:tp,
+      emit,emitDoc:String(r['CNPJ/CPF Emitente']||'').replace(/\D/g,''),dest,destDoc:String(r['CNPJ/CPF Destinatário']||'').replace(/\D/g,''),vNF:num(r['Valor Total NF']),itens:its[ch]||[]};
+    n.tipo=OURS.test(n.dest)?'entrada':OURS.test(n.emit)?(tp==='0'?'entrada':'saida'):'entrada';
+    if(/cancel/i.test(String(r['Situação']||'')+String(r['Status SEFAZ']||'')))n.cancelada=true;
+    n.origem='planilha-xml';n.importado=new Date().toISOString().slice(0,10);if(BASE_CH.has(ch))plan++;
+    notas[ch]=n;ok++;saveNota(ch)});
+  return{ok,dup,plan,bad}}
 async function importFiles(files){
   const msg=$('#impMsg');let ok=0,dup=0,bad=0,plan=0;const textos=[];
   msg.textContent='Lendo arquivos…';
@@ -305,7 +321,8 @@ async function importFiles(files){
         if(!window.JSZip){bad++;continue}
         const z=await JSZip.loadAsync(f);
         for(const nm of Object.keys(z.files)){if(/\.xml$/i.test(nm)&&!z.files[nm].dir)textos.push(await z.files[nm].async('string'))}
-      }else textos.push(await f.text());
+      }else if(/\.xlsx?$/i.test(f.name)){const r=await planilhaNFe(f);ok+=r.ok;dup+=r.dup;plan+=r.plan;bad+=r.bad;continue}
+      else textos.push(await f.text());
     }catch(e){bad++}
   }
   textos.forEach(x=>{const n=parseNFe(x);if(!n||!n.chave){bad++;return}
