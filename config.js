@@ -4,4 +4,4 @@ window.CIA_CONFIG = {
   SUPABASE_URL: 'https://qyvcudasarljgkuhoxip.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_ZwO_qntXb42B0Vy_DB5ABQ_-FgzZe-i'
 };
-window.CIA_VERSAO = '2026-10-31n';
+window.CIA_VERSAO = '2026-10-31o';

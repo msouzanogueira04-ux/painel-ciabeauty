@@ -40,6 +40,7 @@ let CFG_PAG={forn:{}};try{const r=localStorage.getItem('ciab-pag');if(r)CFG_PAG=
 let PAG_SOMAR=false;try{PAG_SOMAR=localStorage.getItem('ciab-pag-somar')==='1'}catch(e){}
 const PRAZOS=['','30','45','60','90','30/60/90','30/45/90'];
 function pagKey(c){return c.forn?'f:'+semAc(short(c.forn)).slice(0,60):'i:'+String(c.cod&&c.cod!=='?'?c.cod:semAc(c.nome).slice(0,40))}
+function servico(c){return /envase|m[aã]o de obra|\bMO\b|montagem/i.test(c.nome||'')||/^M-/i.test(String(c.cod||''))}
 function prazoDe(c){return (CFG_PAG.forn||{})[pagKey(c)]||''}
 function prazoResumo(pp){return Object.keys(pp).map(Number).sort((a,b)=>a-b).map(d=>d+'d '+fmtR0.format(pp[d])).join(' · ')}
 function prazoTxt(z){return z?z.replace(/\//g,' / ')+' dias':'à vista'}
@@ -142,7 +143,7 @@ function renderEditor(){
   c.linhas.forEach((l,i)=>{h+='<tr><td><input type="text" data-i="'+i+'" data-f="nome" value="'+esc(l.c.nome)+'" aria-label="Insumo"'+dis+'><div class="note"><span class="mono">'+esc(l.c.cod||'')+'</span> '+origemPill(l.c)+(l.c.nota?' · '+esc(l.c.nota):'')+sinalPill(p.id,l.c)+'</div></td><td class="note">'+esc(short(l.c.forn))+'</td>'
     +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="coef" value="'+l.c.coef+'" style="width:70px" aria-label="Quantidade por unidade"'+dis+'></td>'
     +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="custo" value="'+(l.cu==null?'':l.cu)+'" placeholder="?" aria-label="Custo unitário"'+dis+'></td>'
-    +'<td class="n"><input type="number" step="1" data-i="'+i+'" data-f="saldo" value="'+(+l.c.saldo||0)+'" aria-label="Estoque" title="Ajuste manual de estoque (planilha)"'+dis+'>'+(()=>{const e=EMP_INS[String(l.c.cod||'')];if(!e)return '';const lc=Object.entries(e.loc.loc||{}).filter(([,q])=>q).map(([k,q])=>locNome(k)+' '+fmtI.format(Math.round(q))).join(' · ');
+    +'<td class="n"><input type="number" step="1" data-i="'+i+'" data-f="saldo" value="'+(+l.c.saldo||0)+'" aria-label="Estoque" title="Ajuste manual de estoque (planilha)"'+dis+'>'+(()=>{if(servico(l.c))return '<div class="note" style="text-align:right">serviço de envase<br>não tem estoque</div>';const e=EMP_INS[String(l.c.cod||'')];if(!e)return '';const lc=Object.entries(e.loc.loc||{}).filter(([,q])=>q).map(([k,q])=>locNome(k)+' '+fmtI.format(Math.round(q))).join(' · ');
       return '<div class="note" style="white-space:nowrap;text-align:right" title="Montagem = entrou pelas notas/planilha − consumido no que já foi produzido (1º pedido). Depósitos = Bling + Stralog + Galpão e demais locais.">'
       +(e.semEntrada?'<span style="color:var(--warn,#b54708)">montagem sem nota de entrada</span>':'montagem '+fmtI.format(Math.round(e.mont)))+(e.loc.qtd?' + depósitos '+fmtI.format(Math.round(e.loc.qtd)):'')
       +'<br><b>tenho '+fmtI.format(Math.round(e.disp))+'</b> · 2º pedido/a produzir '+fmtI.format(Math.round(e.resT))+'<br>'+(e.livre<0?'<b style="color:var(--bad)">comprar '+fmtI.format(Math.round(-e.livre))+'</b>':'<span style="color:var(--ok)">sobra '+fmtI.format(Math.round(e.livre))+'</span>')+(lc?'<br>'+esc(lc):'')+'</div>'})()+'</td>'
@@ -330,7 +331,7 @@ function applyNotas(){
   D.projetos.forEach(p=>{const cs=envDe(p);const ex=cs.length?Math.min(...cs.map(c=>XIN[c]||0)):0;p.rec=(soNotas?0:p.rec0)+ex});
   CONS={};EMP_INS={};ALOC={};
   const ps=allProjects();
-  ps.forEach(p=>comps(p).forEach(c=>{if(!c.cod||c.cod==='?')return;const k=String(c.cod);const coef=+c.coef||0;const e=EMP_INS[k]||(EMP_INS[k]={cod:k,nome:c.nome||'',forn:c.forn||'',entrou:ENT_ALL[k]||0,saldoPl:0,cons:{},res:{}});e.saldoPl=Math.max(e.saldoPl,+c.saldo||0);
+  ps.forEach(p=>comps(p).forEach(c=>{if(!c.cod||c.cod==='?'||servico(c))return;const k=String(c.cod);const coef=+c.coef||0;const e=EMP_INS[k]||(EMP_INS[k]={cod:k,nome:c.nome||'',forn:c.forn||'',entrou:ENT_ALL[k]||0,saldoPl:0,cons:{},res:{}});e.saldoPl=Math.max(e.saldoPl,+c.saldo||0);
     const cq=produzido(p)*coef,rq=aProduzir(p)*coef;if(cq)e.cons[p.id]=(e.cons[p.id]||0)+cq;if(rq)e.res[p.id]=(e.res[p.id]||0)+rq;CONS[k]=(CONS[k]||0)+cq}));
   Object.values(EMP_INS).forEach(e=>{e.consT=Object.values(e.cons).reduce((a,b)=>a+b,0);e.resT=Object.values(e.res).reduce((a,b)=>a+b,0);e.mont=(soNotas||!e.saldoPl)?e.entrou-e.consT:e.saldoPl+(XIN[e.cod]||0);e.loc=estInsumo(e.cod);e.semEntrada=e.mont<0;e.disp=Math.max(0,e.mont)+e.loc.qtd;let livre=e.disp;e.aloc={};
     Object.keys(e.res).sort((a,b)=>a.localeCompare(b)).forEach(pid=>{const q=Math.min(e.res[pid],livre);livre-=q;e.aloc[pid]=q;(ALOC[pid]=ALOC[pid]||{})[e.cod]=q});e.livre=e.disp-e.resT});
