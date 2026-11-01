@@ -602,16 +602,27 @@ let LOCAIS=[{id:'stralog',nome:'Stralog'},{id:'pedrovoss',nome:'Galpão Pedro Vo
 const LSE2='ciab-estoque-v2';const locDoc=id=>id==='stralog'?'atual':id;const locNome=id=>(LOCAIS.find(l=>l.id===id)||{nome:id}).nome;
 try{const r=localStorage.getItem(LSE2);if(r){const o=JSON.parse(r)||{};estLocais=o.locais||{};if(o.lista&&o.lista.length)LOCAIS=o.lista}else if(estoqueAtual&&estoqueAtual.itens)estLocais={stralog:estoqueAtual}}catch(e){}
 /* local automático: entregas das NF de entrada da We Premium − saídas da We (vendas, remessas) */
-function autoDet(l,cod){if(!l.auto)return '';const e=estLocais[l.id];const it=e&&e.itens&&e.itens.find(i=>i.cod===cod);if(!it)return '';return '<div class="note" style="white-space:nowrap" title="Entrou = soma das NF de entrada pelos códigos de recebimento ('+esc(it.cods||'')+'). Saiu = vendas, remessas e outras saídas da empresa.">entrou '+fmtI.format(it.entregue)+(it.devol?' + dev. '+fmtI.format(it.devol):'')+'<br>saiu '+fmtI.format(it.saidas)+'</div>'}
+function autoDet(l,cod){if(!l.auto)return '';const e=estLocais[l.id];const it=e&&e.itens&&e.itens.find(i=>i.cod===cod);const ro=document.body.classList.contains('ro');
+  const bt=ro?'':'<button class="btn ghost" style="padding:0 4px;font-size:11px" data-contar="'+esc(l.id+'|'+cod)+'" title="Informar a quantidade real de hoje; daqui pra frente soma as entradas e tira as saídas">✎ contagem</button>';
+  if(!it)return bt?'<div>'+bt+'</div>':'';
+  return '<div class="note" style="white-space:nowrap" title="Códigos de recebimento: '+esc(it.cods||'—')+'. Saiu = vendas, remessas e outras saídas.">'+(it.base?'contagem '+fmtI.format(it.base.q)+' em '+dBR(it.base.data)+'<br>+ ':'')+'entrou '+fmtI.format(it.entregue)+(it.devol?' + dev. '+fmtI.format(it.devol):'')+'<br>− saiu '+fmtI.format(it.saidas)+'</div>'+bt}
+function salvarContagens(){try{localStorage.setItem('ciab-contagens',JSON.stringify(CONTAGENS))}catch(e){}combinarEstoque();renderAll();if(db)db.doc('cfg/contagens').set(Object.assign({_t:Date.now()},CONTAGENS)).then(()=>setSave('ok','Contagem salva')).catch(()=>setSave('warn','Contagem não salvou'))}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-contar]');if(!b)return;const [loc,cod]=b.dataset.contar.split('|');const atual=((CONTAGENS[loc]||{})[cod])||null;
+  const v=prompt('Quantidade real de '+cod+' hoje ('+locNome(loc)+').\nDaqui pra frente o painel soma as novas entradas e tira as saídas.\nDeixe em branco para apagar a contagem.',atual?atual.q:'');if(v===null)return;
+  const o=Object.assign({},CONTAGENS[loc]||{});if(String(v).trim()==='')delete o[cod];else o[cod]={q:Math.round(num(v)),data:hojeISO()};CONTAGENS=Object.assign({},CONTAGENS,{[loc]:o});salvarContagens()});
 const VIRT=[{id:'entregas_we',nome:'Entregas NF We (informativo)',auto:true,re:/we\s*premium/i,emp:'We'},{id:'entregas_cr',nome:'Entregas NF Creative (informativo)',auto:true,re:/creative/i,emp:'Creative'}];
-function calcEntregas(V){const RE=V.re;let N={};try{N=notas||{}}catch(x){return null}const ent={},dev={},sai={},EIX={};
-  Object.values(N).forEach(n=>{if(!n||n.cancelada||!n.itens)return;
-    if(n.tipo==='entrada'&&RE.test(n.dest||'')&&!/STRALOG/i.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(!k)return;if(/^[12](201|202|410|411)$/.test(String(i[6]||'')))dev[k]=(dev[k]||0)+(+i[3]||0);else{ent[k]=(ent[k]||0)+(+i[3]||0);idxAdd(EIX,k,n.chave||n.num,+i[3]||0)}});
-    else if(n.tipo==='saida'&&RE.test(n.emit||''))n.itens.forEach(i=>{const k=normK0(i[0]);if(k)sai[k]=(sai[k]||0)+(+i[3]||0)})});
-  const itens=[];let ps=[];try{ps=allProjects()}catch(x){}
-  ps.forEach(p=>{const cod=normK0(p.codigo);if(!cod)return;const cs=envDe(p).map(normK0);const viaEnv=cs.length?entregaIdx(EIX,cs):0;const entregue=viaEnv+(cs.includes(cod)?0:(ent[cod]||0));if(!entregue)return;
-    const q=entregue+(dev[cod]||0)-(sai[cod]||0);itens.push({cod,desc:p.sku||'',qtd:Math.max(0,Math.round(q)),entregue:Math.round(entregue),devol:Math.round(dev[cod]||0),saidas:Math.round(sai[cod]||0),cods:cs.join(', '),lotes:[]})});
-  return {arquivo:'informativo, fora do total: entregue nas NF de entrada da '+V.emp+' − saídas da '+V.emp,data:hojeISO(),itens,auto:true}}
+let CONTAGENS={};try{CONTAGENS=JSON.parse(localStorage.getItem('ciab-contagens')||'{}')||{}}catch(e){}
+function calcEntregas(V){const RE=V.re;let N={};try{N=notas||{}}catch(x){return null}const EN=[],SA=[];
+  Object.values(N).forEach(n=>{if(!n||n.cancelada||!n.itens)return;const d=n.data||'';
+    if(n.tipo==='entrada'&&RE.test(n.dest||'')&&!/STRALOG/i.test(n.emit||'')){const m={},dv={};n.itens.forEach(i=>{const k=normK0(i[0]);if(!k)return;if(/^[12](201|202|410|411)$/.test(String(i[6]||'')))dv[k]=(dv[k]||0)+(+i[3]||0);else m[k]=(m[k]||0)+(+i[3]||0)});EN.push({d,m,dv})}
+    else if(n.tipo==='saida'&&RE.test(n.emit||'')){const m={};n.itens.forEach(i=>{const k=normK0(i[0]);if(k)m[k]=(m[k]||0)+(+i[3]||0)});SA.push({d,m})}});
+  const itens=[];let ps=[];try{ps=allProjects()}catch(x){}const CT=CONTAGENS[V.id]||{};
+  ps.forEach(p=>{const cod=normK0(p.codigo);if(!cod)return;const cs=envDe(p).map(normK0).filter(c=>c!==cod);const b=CT[cod];const desde=b?b.data:'';
+    let entregue=0,dev=0,said=0;EN.forEach(x=>{if(desde&&!(x.d>desde))return;let mx=0;cs.forEach(c=>{if((x.m[c]||0)>mx)mx=x.m[c]});entregue+=mx+(x.m[cod]||0);dev+=x.dv[cod]||0});
+    SA.forEach(x=>{if(desde&&!(x.d>desde))return;said+=x.m[cod]||0});
+    if(!entregue&&!b)return;const q=(b?+b.q||0:0)+entregue+dev-said;
+    itens.push({cod,desc:p.sku||'',qtd:Math.max(0,Math.round(q)),entregue:Math.round(entregue),devol:Math.round(dev),saidas:Math.round(said),cods:cs.join(', '),base:b||null,lotes:[]})});
+  return {arquivo:'informativo, fora do total: '+(Object.keys(CT).length?'contagem + ':'')+'entradas − saídas da '+V.emp,data:hojeISO(),itens,auto:true}}
 function combinarEstoque(){const ag={};let data='';const arqs=[];
   VIRT.forEach(V=>{const ix=LOCAIS.findIndex(l=>l.id===V.id);if(ix<0)LOCAIS.push({id:V.id,nome:V.nome,auto:true});else LOCAIS[ix]={id:V.id,nome:V.nome,auto:true};const ew=calcEntregas(V);if(ew)estLocais[V.id]=ew});
   LOCAIS.forEach(L=>{const e=estLocais[L.id];if(!e||!e.itens)return;if((e.data||'')>data)data=e.data||'';arqs.push(L.nome+': '+(e.arquivo||'lançamento manual'));
@@ -1156,6 +1167,7 @@ function auditLine(o){if(!o||!o._em)return '';const n=o._por?(NOMES[o._por]||'')
   db.collection('estoque').onSnapshot(snap=>{const L={};let lista=null;snap.docs.forEach(d=>{if(!d.exists)return;const x=JSON.parse(JSON.stringify(d.data()));if(d.id==='_locais')lista=x.lista;else L[d.id==='atual'?'stralog':d.id]=x});
     if(lista&&lista.length)LOCAIS=lista;Object.keys(L).forEach(id=>{if(!LOCAIS.some(l=>l.id===id))LOCAIS.push({id,nome:id})});estLocais=L;combinarEstoque();lsEst();renderAll()},()=>{});
   db.collection('sinais').onSnapshot(snap=>{const S={};snap.docs.forEach(d=>{if(d.exists)S[d.id]=JSON.parse(JSON.stringify(d.data()))});SINAIS=S;renderAll()},()=>{});
+  db.doc('cfg/contagens').onSnapshot(s=>{if(s.exists){const x=JSON.parse(JSON.stringify(s.data()||{}));delete x._t;CONTAGENS=x;try{localStorage.setItem('ciab-contagens',JSON.stringify(x))}catch(e){}combinarEstoque();renderAll()}},()=>{});
   db.doc('cfg/pagamento').onSnapshot(s=>{if(s.exists){const x=s.data()||{};if((x._t||0)<(CFG_PAG._t||0))return;CFG_PAG=Object.assign({forn:{}},JSON.parse(JSON.stringify(s.data())));try{localStorage.setItem('ciab-pag',JSON.stringify(CFG_PAG))}catch(x){}renderAll()}},()=>{});
   db.doc('cfg/entradas').onSnapshot(s=>{if(s.exists){const x=JSON.parse(JSON.stringify(s.data()));CFG_ENT=Object.assign({fonte:'planilha',ignorar:[]},x);applyNotas();renderAll()}},()=>{});
   setTimeout(()=>puxarXmlsBling(),4000);setTimeout(()=>blStatus(),2500);
