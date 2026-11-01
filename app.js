@@ -193,7 +193,8 @@ ed.addEventListener('input',e=>{if(e.target.id!=='addSearch')return;const q=e.ta
 });
 let INS_LISTA=[];
 function insumosCadastrados(){const m={};allProjects().forEach(p=>comps(p).forEach(c=>{const k=(c.cod&&c.cod!=='?')?'c:'+c.cod:'n:'+semAc(c.nome);const x=m[k]||(m[k]={nome:c.nome||'',cod:(c.cod&&c.cod!=='?')?String(c.cod):'',forn:c.forn||'',custo:c.custo==null||c.custo===''?null:+c.custo,origem:c.origem,n:0,ps:new Set()});if(!x.ps.has(p.id)){x.ps.add(p.id);x.n++}if(x.custo==null&&c.custo!=null&&c.custo!=='')x.custo=+c.custo}));return Object.values(m).sort((a,b)=>b.n-a.n)}
-function renderSim(){renderPlist();renderEditor()}
+let SIM_PEND=false;
+function renderSim(){renderPlist();const a=document.activeElement;if(a&&a.closest&&a.closest('#editor')&&a.tagName==='SELECT'){if(!SIM_PEND){SIM_PEND=true;a.addEventListener('blur',()=>{SIM_PEND=false;setTimeout(()=>{if(!$('#tab-simulador').hidden)renderEditor()},0)},{once:true})}return}renderEditor()}
 
 /* novo projeto */
 $('#btnNovo').addEventListener('click',()=>{$('#nCopy').innerHTML='<option value="">Começar vazio</option>'+allProjects().filter(x=>comps(x).length).map(x=>'<option value="'+esc(x.id)+'">'+esc((x.codigo?x.codigo+' · ':'')+x.sku)+'</option>').join('');$('#modal').hidden=false;$('#nColecao').focus()});
@@ -360,7 +361,7 @@ function renderEntradas(){
       +dif.sort((x,y)=>Math.abs((b[y.id]||0)-(a[y.id]||0))-Math.abs((b[x.id]||0)-(a[x.id]||0))).map(p=>'<tr><td>'+esc(p.id+' · '+pdNomeCurto(p))+'</td><td class="n">'+fmtI.format(a[p.id]||0)+'</td><td class="n">'+fmtI.format(b[p.id]||0)+'</td><td class="n">'+fmtI.format((b[p.id]||0)-(a[p.id]||0))+'</td><td class="mono note">'+esc(envDe(p).join(', ')||'— sem código')+'</td></tr>').join('')+'</tbody></table></div></details>':'')
     +'<p class="note">Com "Só notas fiscais", recebido, compras e estoque de insumos passam a sair das NF de entrada (as do Bling chegam sozinhas a cada 30 min). Os códigos que ligam cada nota ao produto ficam no cadastro de vínculos, na aba Compras.</p>';
 }
-document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.prazo!=null){const p=byId(cur);if(!p)return;const l=calc(p).linhas[+e.target.dataset.prazo];if(!l)return;const k=pagKey(l.c);CFG_PAG.forn=Object.assign({},CFG_PAG.forn);if(e.target.value)CFG_PAG.forn[k]=e.target.value;else delete CFG_PAG.forn[k];try{localStorage.setItem('ciab-pag',JSON.stringify(CFG_PAG))}catch(x){}renderAll();if(db)db.doc('cfg/pagamento').set(CFG_PAG).then(()=>setSave('ok','Prazo salvo: '+(short(l.c.forn)||l.c.nome)+' → '+prazoTxt(e.target.value))).catch(()=>setSave('warn','Prazo não salvou'));return}
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.prazo!=null){const p=byId(cur);if(!p)return;const l=calc(p).linhas[+e.target.dataset.prazo];if(!l)return;const k=pagKey(l.c);CFG_PAG.forn=Object.assign({},CFG_PAG.forn);if(e.target.value)CFG_PAG.forn[k]=e.target.value;else delete CFG_PAG.forn[k];CFG_PAG._t=Date.now();e.target.blur();try{localStorage.setItem('ciab-pag',JSON.stringify(CFG_PAG))}catch(x){}renderAll();if(db)db.doc('cfg/pagamento').set(CFG_PAG).then(()=>setSave('ok','Prazo salvo: '+(short(l.c.forn)||l.c.nome)+' → '+prazoTxt(e.target.value))).catch(()=>setSave('warn','Prazo não salvou'));return}
   if(e.target.name==='entFonte'){CFG_ENT.fonte=e.target.value;salvarCfgEnt()}});
 /* códigos de recebimento (qual linha da NF dá entrada no produto acabado) */
 function codigosNF(){const m={};Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{const c=String(i[0]||'');if(c&&!m[c])m[c]=i[1]+' · '+short(n.emit)})});return m}
@@ -1081,7 +1082,7 @@ function auditLine(o){if(!o||!o._em)return '';const n=o._por?(NOMES[o._por]||'')
   db.collection('estoque').onSnapshot(snap=>{const L={};let lista=null;snap.docs.forEach(d=>{if(!d.exists)return;const x=JSON.parse(JSON.stringify(d.data()));if(d.id==='_locais')lista=x.lista;else L[d.id==='atual'?'stralog':d.id]=x});
     if(lista&&lista.length)LOCAIS=lista;Object.keys(L).forEach(id=>{if(!LOCAIS.some(l=>l.id===id))LOCAIS.push({id,nome:id})});estLocais=L;combinarEstoque();lsEst();renderAll()},()=>{});
   db.collection('sinais').onSnapshot(snap=>{const S={};snap.docs.forEach(d=>{if(d.exists)S[d.id]=JSON.parse(JSON.stringify(d.data()))});SINAIS=S;renderAll()},()=>{});
-  db.doc('cfg/pagamento').onSnapshot(s=>{if(s.exists){CFG_PAG=Object.assign({forn:{}},JSON.parse(JSON.stringify(s.data())));try{localStorage.setItem('ciab-pag',JSON.stringify(CFG_PAG))}catch(x){}renderAll()}},()=>{});
+  db.doc('cfg/pagamento').onSnapshot(s=>{if(s.exists){const x=s.data()||{};if((x._t||0)<(CFG_PAG._t||0))return;CFG_PAG=Object.assign({forn:{}},JSON.parse(JSON.stringify(s.data())));try{localStorage.setItem('ciab-pag',JSON.stringify(CFG_PAG))}catch(x){}renderAll()}},()=>{});
   db.doc('cfg/entradas').onSnapshot(s=>{if(s.exists){const x=JSON.parse(JSON.stringify(s.data()));CFG_ENT=Object.assign({fonte:'planilha',ignorar:[]},x);applyNotas();renderAll()}},()=>{});
   setTimeout(()=>puxarXmlsBling(),4000);setTimeout(()=>blStatus(),2500);
   db.doc('bling/precos').onSnapshot(s=>{BL.precos=s.exists?JSON.parse(JSON.stringify(s.data())):null;if(!$('#tab-produtos').hidden&&PD.cur)pdPainel()},()=>{});
