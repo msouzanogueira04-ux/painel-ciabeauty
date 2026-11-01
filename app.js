@@ -41,7 +41,8 @@ let PAG_SOMAR=false;try{PAG_SOMAR=localStorage.getItem('ciab-pag-somar')==='1'}c
 const PRAZOS=['','30','45','60','90','30/60/90','30/45/90'];
 function pagKey(c){return c.forn?'f:'+semAc(short(c.forn)).slice(0,60):'i:'+String(c.cod&&c.cod!=='?'?c.cod:semAc(c.nome).slice(0,40))}
 function servico(c){return /envase|m[aã]o de obra|\bMO\b|montagem/i.test(c.nome||'')||/^M-/i.test(String(c.cod||''))}
-function prazoDe(c){return (CFG_PAG.forn||{})[pagKey(c)]||''}
+function linhaKey(c){return String(c.cod&&c.cod!=='?'?c.cod:semAc(c.nome).slice(0,40)).replace(/[.$#\[\]\/]/g,'_')}
+function prazoDe(p,c){return ((ov[p.id]||{}).prazos||{})[linhaKey(c)]||''}
 function prazoResumo(pp){return Object.keys(pp).map(Number).sort((a,b)=>a-b).map(d=>d+'d '+fmtR0.format(pp[d])).join(' · ')}
 function prazoTxt(z){return z?z.replace(/\//g,' / ')+' dias':'à vista'}
 function partesPrazo(z,v){const d=z.split('/').map(Number).filter(Boolean);return d.map(x=>[x,v/d.length])}
@@ -49,9 +50,9 @@ function calc(p){
   const Q=qtd(p),ab=abater(p);let unit=0,desemb=0,bruto=0,falta=0,aPrazo=0;const porPrazo={};const linhas=[];
   comps(p).forEach(c=>{
     const coef=+c.coef||0,cu=c.custo==null||c.custo===''?null:+c.custo;
-    const nec=Q*coef,disp=EMP_INS[c.cod]?((ALOC[p.id]||{})[c.cod]||0):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
+    const nec=Q*coef,disp=EMP_INS[c.cod]?((ALOC[p.id]||{})[c.cod]||0)+Math.max(0,EMP_INS[c.cod].livre):(+c.saldo||0)+(XIN[c.cod]||0),est=ab?Math.min(Math.max(disp,0),nec):0,comprar=nec-est;
     const v=comprar*(cu||0);if(cu==null)falta++;
-    const z=prazoDe(c);unit+=coef*(cu||0);bruto+=nec*(cu||0);
+    const z=prazoDe(p,c);unit+=coef*(cu||0);bruto+=nec*(cu||0);
     if(z){aPrazo+=v;partesPrazo(z,v).forEach(([d,x])=>{porPrazo[d]=(porPrazo[d]||0)+x});if(PAG_SOMAR)desemb+=v}else desemb+=v;
     linhas.push({c,nec,est,comprar,v,cu,z});
   });
@@ -147,7 +148,7 @@ function renderEditor(){
       return '<div class="note" style="white-space:nowrap;text-align:right" title="Montagem = entrou pelas notas/planilha − consumido no que já foi produzido (1º pedido). Depósitos = Bling + Stralog + Galpão e demais locais.">'
       +(e.semEntrada?'<span style="color:var(--warn,#b54708)">montagem sem nota de entrada</span>':'montagem '+fmtI.format(Math.round(e.mont)))+(e.loc.qtd?' + depósitos '+fmtI.format(Math.round(e.loc.qtd)):'')
       +'<br><b>tenho '+fmtI.format(Math.round(e.disp))+'</b> · 2º pedido/a produzir '+fmtI.format(Math.round(e.resT))+'<br>'+(e.livre<0?'<b style="color:var(--bad)">comprar '+fmtI.format(Math.round(-e.livre))+'</b>':'<span style="color:var(--ok)">sobra '+fmtI.format(Math.round(e.livre))+'</span>')+(lc?'<br>'+esc(lc):'')+'</div>'})()+'</td>'
-    +'<td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n"'+(l.z&&!PAG_SOMAR?' style="opacity:.6"':'')+'>'+fmtR.format(l.v)+'<div><select data-prazo="'+i+'" aria-label="Pagamento" title="Prazo de pagamento deste fornecedor (vale para todos os produtos dele). A prazo sai do desembolso à vista."'+(document.body.classList.contains('ro')?' disabled':'')+' style="font-size:12px;padding:2px 4px;margin-top:4px">'+PRAZOS.map(z=>'<option value="'+z+'"'+(z===l.z?' selected':'')+'>'+prazoTxt(z)+'</option>').join('')+'</select></div></td><td style="white-space:nowrap">'+(document.body.classList.contains('ro')?'':'<button class="btn ghost" data-sinal="'+i+'" title="Sinalizar: este insumo está errado / indicar o insumo correto" aria-label="Sinalizar insumo">⚑</button>')+(ed?'<button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button>':'')+'</td></tr>'});
+    +'<td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n"'+(l.z&&!PAG_SOMAR?' style="opacity:.6"':'')+'>'+fmtR.format(l.v)+'<div><select data-prazo="'+i+'" aria-label="Pagamento" title="Prazo de pagamento deste insumo neste produto. A prazo sai do desembolso à vista."'+(document.body.classList.contains('ro')?' disabled':'')+' style="font-size:12px;padding:2px 4px;margin-top:4px">'+PRAZOS.map(z=>'<option value="'+z+'"'+(z===l.z?' selected':'')+'>'+prazoTxt(z)+'</option>').join('')+'</select></div></td><td style="white-space:nowrap">'+(document.body.classList.contains('ro')?'':'<button class="btn ghost" data-sinal="'+i+'" title="Sinalizar: este insumo está errado / indicar o insumo correto" aria-label="Sinalizar insumo">⚑</button>')+(ed?'<button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button>':'')+'</td></tr>'});
   if(!c.linhas.length)h+='<tr><td colspan="9" class="muted">Nenhum insumo ainda.</td></tr>';
   h+='</tbody><tfoot><tr><td colspan="7">'+(PAG_SOMAR?'Total':'Total à vista')+'</td><td class="n">'+fmtR.format(c.desemb)+'</td><td></td></tr>'+(c.aPrazo&&!PAG_SOMAR?'<tr><td colspan="7" class="note">A prazo (fora do desembolso): '+prazoResumo(c.porPrazo)+'</td><td class="n note">'+fmtR.format(c.aPrazo)+'</td><td></td></tr>':'')+'</tfoot></table></div>';
   if(ed)h+='<div class="row" style="margin-top:12px"><div class="searchbox grow" style="min-width:240px"><input type="search" id="addSearch" placeholder="Adicionar insumo: busque nos insumos cadastrados e no catálogo de NFs (ex.: frasco 200ml, rótulo, caixa)" style="width:100%" autocomplete="off" aria-label="Adicionar insumo"><div class="sugg" id="sugg" hidden></div></div>'
@@ -361,7 +362,7 @@ function renderEntradas(){
       +dif.sort((x,y)=>Math.abs((b[y.id]||0)-(a[y.id]||0))-Math.abs((b[x.id]||0)-(a[x.id]||0))).map(p=>'<tr><td>'+esc(p.id+' · '+pdNomeCurto(p))+'</td><td class="n">'+fmtI.format(a[p.id]||0)+'</td><td class="n">'+fmtI.format(b[p.id]||0)+'</td><td class="n">'+fmtI.format((b[p.id]||0)-(a[p.id]||0))+'</td><td class="mono note">'+esc(envDe(p).join(', ')||'— sem código')+'</td></tr>').join('')+'</tbody></table></div></details>':'')
     +'<p class="note">Com "Só notas fiscais", recebido, compras e estoque de insumos passam a sair das NF de entrada (as do Bling chegam sozinhas a cada 30 min). Os códigos que ligam cada nota ao produto ficam no cadastro de vínculos, na aba Compras.</p>';
 }
-document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.prazo!=null){const p=byId(cur);if(!p)return;const l=calc(p).linhas[+e.target.dataset.prazo];if(!l)return;const k=pagKey(l.c);CFG_PAG.forn=Object.assign({},CFG_PAG.forn);if(e.target.value)CFG_PAG.forn[k]=e.target.value;else delete CFG_PAG.forn[k];CFG_PAG._t=Date.now();e.target.blur();try{localStorage.setItem('ciab-pag',JSON.stringify(CFG_PAG))}catch(x){}renderAll();if(db)db.doc('cfg/pagamento').set(CFG_PAG).then(()=>setSave('ok','Prazo salvo: '+(short(l.c.forn)||l.c.nome)+' → '+prazoTxt(e.target.value))).catch(()=>setSave('warn','Prazo não salvou'));return}
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.prazo!=null){const p=byId(cur);if(!p)return;const l=calc(p).linhas[+e.target.dataset.prazo];if(!l)return;const o=ov[p.id]||{};const pr=Object.assign({},o.prazos||{});const k=linhaKey(l.c);if(e.target.value)pr[k]=e.target.value;else delete pr[k];ov[p.id]=Object.assign({},o,{prazos:pr});e.target.blur();if(EDIT[p.id]){lsSave();renderAll();setSave('warn','Prazo será salvo junto com a estrutura')}else{persist(p.id);renderAll();setSave('ok','Prazo salvo: '+(l.c.nome||'')+' → '+prazoTxt(e.target.value))}return}
   if(e.target.name==='entFonte'){CFG_ENT.fonte=e.target.value;salvarCfgEnt()}});
 /* códigos de recebimento (qual linha da NF dá entrada no produto acabado) */
 function codigosNF(){const m={};Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{const c=String(i[0]||'');if(c&&!m[c])m[c]=i[1]+' · '+short(n.emit)})});return m}
