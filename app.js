@@ -173,7 +173,7 @@ function renderEditor(){
   const ed=!!EDIT[p.id],dis=ed?'':' disabled';
   h+='<div class="row" style="margin:6px 0 10px;gap:8px">'+(document.body.classList.contains('ro')?'':ed?'<span class="pill warn">Editando — alterações ainda não salvas</span><span class="grow"></span><button class="btn" id="edCancel">Cancelar</button><button class="btn pri" id="edSave">Salvar estrutura</button>':'<span class="pill neu">🔒 Estrutura travada</span><span class="grow"></span><button class="btn" id="edOpen">✎ Editar estrutura</button>')+'</div>';
   if(comps(p).some(x=>x.auto)&&!o.comps)h+='<div class="note" style="margin-bottom:8px">Estrutura inicial montada com o preço de envase das NFs da Giudit (matéria-prima + mão de obra). Adicione frasco, rótulo, cartucho e caixa para fechar o custo.</div>';
-  h+='<div class="tbl-wrap ed"><table><thead><tr><th>Insumo</th><th>Fornecedor</th><th class="n">Qtd/un</th><th class="n">Custo un. (R$)</th><th class="n">Estoque</th><th class="n">Necessidade</th><th class="n">Comprar</th><th class="n">Desembolso</th><th></th></tr></thead><tbody>';
+  h+='<div class="tbl-wrap ed"><table><thead><tr><th>Insumo</th><th>Fornecedor</th><th class="n">Qtd/un</th><th class="n">Custo un. (R$)</th><th class="n">Estoque</th><th class="n" title="Pedido inteiro (1º + 2º) × qtd por unidade, comparado com o que já foi entregue nas notas">Pedido · entregue</th><th class="n">Necessidade</th><th class="n">Comprar</th><th class="n">Desembolso</th><th></th></tr></thead><tbody>';
   c.linhas.forEach((l,i)=>{h+='<tr><td><input type="text" data-i="'+i+'" data-f="nome" value="'+esc(l.c.nome)+'" aria-label="Insumo"'+dis+'><div class="note"><span class="mono">'+esc(l.c.cod||'')+'</span> '+origemPill(l.c)+(l.c.nota?' · '+esc(l.c.nota):'')+sinalPill(p.id,l.c)+'</div></td><td class="note">'+esc(short(l.c.forn))+'</td>'
     +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="coef" value="'+l.c.coef+'" style="width:70px" aria-label="Quantidade por unidade"'+dis+'></td>'
     +'<td class="n"><input type="number" step="0.01" min="0" data-i="'+i+'" data-f="custo" value="'+(l.cu==null?'':l.cu)+'" placeholder="?" aria-label="Custo unitário"'+dis+'></td>'
@@ -181,9 +181,9 @@ function renderEditor(){
       return '<div class="note" style="white-space:nowrap;text-align:right" title="Montagem = entrou pelas notas/planilha − consumido no que já foi produzido (1º pedido). Depósitos = Bling + Stralog + Galpão e demais locais.">'
       +(e.semEntrada?'<span style="color:var(--warn,#b54708)">montagem sem nota de entrada</span>':'montagem '+fmtI.format(Math.round(e.mont)))+(e.loc.qtd?' + depósitos '+fmtI.format(Math.round(e.loc.qtd)):'')
       +'<br><b>tenho '+fmtI.format(Math.round(e.disp))+'</b> · 2º pedido/a produzir '+fmtI.format(Math.round(e.resT))+'<br>'+(e.livre<0?'<b style="color:var(--bad)">comprar '+fmtI.format(Math.round(-e.livre))+'</b>':'<span style="color:var(--ok)">sobra '+fmtI.format(Math.round(e.livre))+'</span>')+(lc?'<br>'+esc(lc):'')+'</div>'})()+'</td>'
-    +'<td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n"'+(l.z&&!PAG_SOMAR?' style="opacity:.6"':'')+'>'+fmtR.format(l.v)+'<div><select data-prazo="'+i+'" aria-label="Pagamento" title="Prazo de pagamento deste insumo neste produto. A prazo sai do desembolso à vista."'+(document.body.classList.contains('ro')?' disabled':'')+' style="font-size:12px;padding:2px 4px;margin-top:4px">'+PRAZOS.map(z=>'<option value="'+z+'"'+(z===l.z?' selected':'')+'>'+prazoTxt(z)+'</option>').join('')+'</select></div></td><td style="white-space:nowrap">'+(document.body.classList.contains('ro')?'':'<button class="btn ghost" data-sinal="'+i+'" title="Sinalizar: este insumo está errado / indicar o insumo correto" aria-label="Sinalizar insumo">⚑</button>')+(ed?'<button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button>':'')+'</td></tr>'});
-  if(!c.linhas.length)h+='<tr><td colspan="9" class="muted">Nenhum insumo ainda.</td></tr>';
-  h+='</tbody><tfoot><tr><td colspan="7">'+(PAG_SOMAR?'Total':'Total à vista')+'</td><td class="n">'+fmtR.format(c.desemb)+'</td><td></td></tr>'+(c.aPrazo&&!PAG_SOMAR?'<tr><td colspan="7" class="note">A prazo (fora do desembolso): '+prazoResumo(c.porPrazo)+'</td><td class="n note">'+fmtR.format(c.aPrazo)+'</td><td></td></tr>':'')+'</tfoot></table></div>';
+    +'<td class="n" style="min-width:150px">'+(entregaTxt(p,l.c)||'<span class="note">—</span>')+'</td><td class="n">'+fmtI.format(l.nec)+'</td><td class="n">'+fmtI.format(l.comprar)+'</td><td class="n"'+(l.z&&!PAG_SOMAR?' style="opacity:.6"':'')+'>'+fmtR.format(l.v)+'<div><select data-prazo="'+i+'" aria-label="Pagamento" title="Prazo de pagamento deste insumo neste produto. A prazo sai do desembolso à vista."'+(document.body.classList.contains('ro')?' disabled':'')+' style="font-size:12px;padding:2px 4px;margin-top:4px">'+PRAZOS.map(z=>'<option value="'+z+'"'+(z===l.z?' selected':'')+'>'+prazoTxt(z)+'</option>').join('')+'</select></div></td><td style="white-space:nowrap">'+(document.body.classList.contains('ro')?'':'<button class="btn ghost" data-sinal="'+i+'" title="Sinalizar: este insumo está errado / indicar o insumo correto" aria-label="Sinalizar insumo">⚑</button>')+(ed?'<button class="btn ghost" data-del="'+i+'" aria-label="Remover">✕</button>':'')+'</td></tr>'});
+  if(!c.linhas.length)h+='<tr><td colspan="10" class="muted">Nenhum insumo ainda.</td></tr>';
+  h+='</tbody><tfoot><tr><td colspan="8">'+(PAG_SOMAR?'Total':'Total à vista')+'</td><td class="n">'+fmtR.format(c.desemb)+'</td><td></td></tr>'+(c.aPrazo&&!PAG_SOMAR?'<tr><td colspan="8" class="note">A prazo (fora do desembolso): '+prazoResumo(c.porPrazo)+'</td><td class="n note">'+fmtR.format(c.aPrazo)+'</td><td></td></tr>':'')+'</tfoot></table></div>';
   if(ed)h+='<div class="row" style="margin-top:12px"><div class="searchbox grow" style="min-width:240px"><input type="search" id="addSearch" placeholder="Adicionar insumo: busque nos insumos cadastrados e no catálogo de NFs (ex.: frasco 200ml, rótulo, caixa)" style="width:100%" autocomplete="off" aria-label="Adicionar insumo"><div class="sugg" id="sugg" hidden></div></div>'
    +'<button class="btn" id="addManual">+ Linha manual</button>'
    +(copyOpts?'<select id="copyFrom" aria-label="Copiar estrutura"><option value="">Copiar estrutura de…</option>'+copyOpts+'</select>':'')
@@ -371,15 +371,16 @@ function estInsumo(cod){let ea=null;try{ea=estoqueAtual}catch(x){}const k=normK0
 /* entregue por notas: em cada nota vale a maior qtd entre os códigos de recebimento (produto e MO são o mesmo lote); soma entre notas — assim códigos diferentes em entregas diferentes somam */
 function idxAdd(ix,cod,ch,q){const k=normK0(cod);if(!k)return;const m=ix[k]||(ix[k]={});m[ch]=(m[ch]||0)+q}
 function entregaIdx(ix,cs){const por={};cs.map(normK0).forEach(c=>{const m=ix[c];if(!m)return;Object.entries(m).forEach(([ch,q])=>{if(q>(por[ch]||0))por[ch]=q})});return Object.values(por).reduce((a,b)=>a+b,0)}
+function qtdUn(i){const u=String(i[2]||'').trim().toUpperCase();return (+i[3]||0)*(/^(MIL|MILH|MILHEIRO|MLH)$/.test(u)?1000:1)}
 function normK0(s){return String(s==null?'':s).trim().toUpperCase()}
 function applyNotas(){
   XIN={};XOUT={};ENT_ALL={};const NIX={};const soNotas=fonteNotas();const mes=soNotas?{}:Object.assign({},MES_BASE),cat={};
-  Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;ENT_ALL[i[0]]=(ENT_ALL[i[0]]||0)+i[3]})});
+  Object.values(notas).forEach(n=>{if(n.tipo!=='entrada'||n.cancelada||/STRALOG/i.test(n.emit))return;n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;ENT_ALL[i[0]]=(ENT_ALL[i[0]]||0)+qtdUn(i)})});
   Object.values(notas).forEach(n=>{
     if(n.tipo==='saida'){n.itens.forEach(i=>{XOUT[i[0]]=(XOUT[i[0]]||0)+i[3]});return}
     if((!soNotas&&BASE_CH.has(n.chave))||n.cancelada||/STRALOG/i.test(n.emit))return;
     const m=(n.data||'').slice(0,7);
-    n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;XIN[i[0]]=(XIN[i[0]]||0)+i[3];idxAdd(NIX,i[0],n.chave||n.num,+i[3]||0);if(m)mes[m]=(mes[m]||0)+i[5];
+    n.itens.forEach(i=>{if(/^[1256](201|202|410|411)$/.test(i[6]))return;XIN[i[0]]=(XIN[i[0]]||0)+qtdUn(i);idxAdd(NIX,i[0],n.chave||n.num,qtdUn(i));if(m)mes[m]=(mes[m]||0)+i[5];
       const k=i[0]+'|'+n.emit;const c=cat[k]||(cat[k]=[i[0],i[1],n.emit,0,i[4],n.data]);c[3]+=i[3];if((n.data||'')>=c[5]){c[4]=i[4];c[5]=n.data}});
   });
   D.comprasMes=mes;D.catalogo=(soNotas?[]:CAT_BASE).concat(Object.values(cat));
@@ -390,8 +391,19 @@ function applyNotas(){
     const cq=produzido(p)*coef,rq=aProduzir(p)*coef;if(cq)e.cons[p.id]=(e.cons[p.id]||0)+cq;if(rq)e.res[p.id]=(e.res[p.id]||0)+rq;CONS[k]=(CONS[k]||0)+cq}));
   Object.values(EMP_INS).forEach(e=>{e.consT=Object.values(e.cons).reduce((a,b)=>a+b,0);e.resT=Object.values(e.res).reduce((a,b)=>a+b,0);e.mont=(soNotas||!e.saldoPl)?e.entrou-e.consT:e.saldoPl+(XIN[e.cod]||0);e.loc=estInsumo(e.cod);e.semEntrada=e.mont<0;e.disp=Math.max(0,e.mont)+e.loc.qtd;let livre=e.disp;e.aloc={};
     Object.keys(e.res).sort((a,b)=>a.localeCompare(b)).forEach(pid=>{const q=Math.min(e.res[pid],livre);livre-=q;e.aloc[pid]=q;(ALOC[pid]=ALOC[pid]||{})[e.cod]=q});e.livre=e.disp-e.resT});
+  {ENT_ALOC={};const EA={};Object.entries(soNotas?ENT_ALL:XIN).forEach(([k,q])=>{const n=normK0(k);EA[n]=(EA[n]||0)+q});
+   if(!soNotas){const PL={};allProjects().forEach(p=>comps(p).forEach(c=>{const k=normK0(c.cod);if(k&&k!=='?'&&+c.recebido>0)PL[k]=Math.max(PL[k]||0,+c.recebido)}));Object.entries(PL).forEach(([k,q])=>{EA[k]=(EA[k]||0)+q})}const rest=Object.assign({},EA);
+   allProjects().slice().sort((a,b)=>String(a.id).localeCompare(String(b.id))).forEach(p=>comps(p).forEach(c=>{const k=normK0(c.cod);if(!k||k==='?'||!rest[k])return;const nec=total(p)*(+c.coef||0);const q=Math.min(nec,rest[k]);rest[k]-=q;(ENT_ALOC[p.id]=ENT_ALOC[p.id]||{})[k]=((ENT_ALOC[p.id]||{})[k]||0)+q}));ENT_ALOC._tot=EA}
   if(!COMB_RUN){COMB_RUN=true;try{combinarEstoque()}catch(x){}COMB_RUN=false}
 }
+/* entrega de cada item da estrutura: pedido inteiro (1º+2º) × qtd/un; insumo = NF de entrada alocadas ao produto; montagem/envase = entregue pelo fornecedor (ou produto acabado recebido) */
+let ENT_ALOC={};
+function entregaComp(p,c){const coef=+c.coef||0;const nec=Math.round(total(p)*coef);if(!nec)return null;const k=normK0(c.cod);
+  let ent=(ENT_ALOC[p.id]||{})[k]||0,fonte='notas';const tot=(ENT_ALOC._tot||{})[k]||0;
+  if(servico(c)&&!tot){ent=(p.rec||0)*coef;fonte='recebido'}
+  ent=Math.min(nec,Math.round(ent));return{nec,ent,falta:Math.max(0,nec-ent),serv:servico(c),fonte,tot:Math.round(tot)}}
+function entregaTxt(p,c,curto){const e=entregaComp(p,c);if(!e)return '';const ok=e.falta<=0;const v=e.serv?['montou','falta montar']:['entregue','falta entregar'];
+  return '<span class="pd-ent" style="display:block;font-size:11px;margin-top:3px;color:'+(ok?'var(--ok)':'var(--fg2,inherit)')+'" title="Pedido '+fmtI.format(e.nec)+' (1º+2º pedido × qtd por unidade). '+(e.fonte==='notas'?'Pelas NF de entrada'+(e.tot>e.ent?' (total nas notas '+fmtI.format(e.tot)+', dividido entre os produtos que usam este código)':''):'Sem nota do serviço: usa o produto acabado recebido')+'.">'+v[0]+' <b>'+fmtI.format(e.ent)+'</b> de '+fmtI.format(e.nec)+(ok?' ✓':' · <b style="color:var(--bad)">'+v[1]+' '+fmtI.format(e.falta)+'</b>')+'</span>'}
 /* ---------- ENTRADAS: notas do Bling, origem das entradas e cadastro de vínculos (estruturas) ---------- */
 let BLX={rodando:false,feito:false,msg:''};
 async function puxarXmlsBling(){
@@ -1120,7 +1132,7 @@ function pdMontar(animar){
   st.className='pd-stage';
   st.innerHTML='<svg class="pd-wires" aria-hidden="true"></svg><button class="pd-hub" id="pdHub" aria-label="Resumo do produto">'+pdFoto(p)+'</button><div class="pd-cap" id="pdCap">'+esc(pdNomeCurto(p))+'<span>'+(k.semEstrutura?'sem estrutura cadastrada':pdR3.format(unit)+' por unidade')+'</span></div>'+
     (k.semEstrutura?'<div class="pd-vazio">Este produto ainda não tem insumos cadastrados. Monte a estrutura na aba Custos.</div>':'')+
-    k.linhas.map((l,i)=>{const t=pdTipo(l.c.nome);return '<button class="pd-node" data-i="'+i+'" style="--i:'+i+';--tc:var('+t[1]+')" aria-pressed="false"><span class="pd-hd"><span class="pd-ic"><svg viewBox="0 0 24 24">'+t[2]+'</svg></span><span class="pd-nm">'+esc(l.c.nome)+'</span></span><span class="pd-fo">'+esc(short(l.c.forn)||'Fornecedor não informado')+'</span><span class="pd-vl">'+(l.cu==null?'<span class="pill bad">custo faltando</span>':'<span class="num">'+pdR3.format(l.un)+'</span>')+'<span class="num muted">'+pdPct.format(l.pct)+'</span></span><span class="pd-bar"><i style="width:'+(l.pct*100).toFixed(1)+'%"></i></span></button>'}).join('');
+    k.linhas.map((l,i)=>{const t=pdTipo(l.c.nome);return '<button class="pd-node" data-i="'+i+'" style="--i:'+i+';--tc:var('+t[1]+')" aria-pressed="false"><span class="pd-hd"><span class="pd-ic"><svg viewBox="0 0 24 24">'+t[2]+'</svg></span><span class="pd-nm">'+esc(l.c.nome)+'</span></span><span class="pd-fo">'+esc(short(l.c.forn)||'Fornecedor não informado')+'</span><span class="pd-vl">'+(l.cu==null?'<span class="pill bad">custo faltando</span>':'<span class="num">'+pdR3.format(l.un)+'</span>')+'<span class="num muted">'+pdPct.format(l.pct)+'</span></span><span class="pd-bar"><i style="width:'+(l.pct*100).toFixed(1)+'%"></i></span>'+entregaTxt(p,l.c)+'</button>'}).join('');
   pdLayout();
   if(animar){st.classList.remove('anim');void st.offsetWidth;st.classList.add('anim')}
   pdMarcar();
