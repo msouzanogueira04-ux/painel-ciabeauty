@@ -209,6 +209,7 @@ svg text{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
 .ro .drop,.ro #btnNovo,.ro [data-del],.ro [data-rm],.ro [data-tg],.ro #addManual,.ro #venLimpar,.ro #resetP,.ro #delProj,.ro .searchbox,.ro #copyFrom{display:none!important}
 .ro #editor input,.ro #cartTbl input{pointer-events:none;opacity:.75}
 .ro .blcad-row{display:none}
+.gprod .gprod-av{display:none}.gprod.ativo .gprod-av{display:inline}.gprod.ativo{background:var(--sunk);padding:6px 10px;border-radius:10px}
 .audit{font-size:.78rem;color:var(--muted);margin-top:4px}
 
 html,body{margin:0}
@@ -371,6 +372,7 @@ body{font-size:14px}
     <div><div class="eyebrow" id="tabSub">Cia Beauty · projetos licenciados</div><h1 id="tabTitle">Olá, Michele</h1></div>
     <div class="row"><span class="temaTopo"><button type="button" class="iconbtn btnTema" title="Tema claro / escuro" aria-label="Alternar tema claro ou escuro"><svg class="lua" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button></span><span class="note" id="syncInfo" style="max-width:220px;text-align:right"></span><button class="btn pri" id="syncAll" title="Puxa do Bling: notas de entrada, pedidos, propostas, estoque por depósito e preços de compra das duas empresas">↻ Sincronizar tudo com o Bling</button><button class="btn" id="expAba">Exportar esta aba (.xlsx)</button><button class="btn pri" id="expTudo">Relatório completo (.xlsx)</button></div>
   </header>
+  <div class="row gprod" id="gprod" style="gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px"><span class="eyebrow">Filtrar produtos</span><input type="search" id="gprodIn" list="gprodLista" placeholder="escolha na lista ou digite (ex.: cooky, BT21) e Enter" aria-label="Filtrar produtos em todas as abas" style="min-width:280px"><datalist id="gprodLista"></datalist><span id="gprodChips" class="row" style="gap:6px;flex-wrap:wrap"></span><span class="note gprod-av">· filtrando todas as abas e as exportações</span></div>
   <section class="kpis" id="kpis"></section>
 
   <!-- INICIO -->
@@ -483,9 +485,12 @@ body{font-size:14px}
     <div class="row" style="margin-bottom:10px">
       <div class="chips" id="notaChips"><button class="chip" data-f="">Todas</button><button class="chip" data-f="entrada">Entradas</button><button class="chip" data-f="saida">Saídas</button></div>
       <input type="search" id="notaSearch" class="grow" placeholder="Buscar nº, fornecedor, cliente ou produto" aria-label="Buscar notas">
+      <input type="search" id="notaProd" list="notaProdLista" placeholder="+ Produto: escolha na lista ou digite e Enter (pode vários)" aria-label="Filtrar por produto" style="min-width:260px"><datalist id="notaProdLista"></datalist>
+      <label class="note" style="display:flex;align-items:center;gap:4px">de <input type="date" id="notaDe" aria-label="Data inicial"></label><label class="note" style="display:flex;align-items:center;gap:4px">até <input type="date" id="notaAte" aria-label="Data final"></label>
       <button class="btn" id="expXml">Exportar XML (.zip)</button>
       <button class="btn" id="expCsv">Exportar itens (CSV)</button>
     </div>
+    <div class="note" id="notaProdRes" hidden style="margin:-4px 0 10px"></div>
     <div class="tbl-wrap"><table id="notasTbl"></table></div>
     <p class="note">Entradas que ainda não estão na planilha somam no estoque dos insumos de Custos, no Recebido dos projetos e nas Compras. Saídas aparecem na coluna "Saída NF" das Entregas. A exportação respeita os filtros (empresa e Entradas, Saídas ou Todas). O CSV sai no formato da aba Entradas.</p>
   </section>
@@ -687,7 +692,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261101g"></script>
-<script src="shell.js?v=20261101g"></script>
+<script src="config.js?v=20261103b"></script>
+<script src="shell.js?v=20261103b"></script>
 </body>
 </html>

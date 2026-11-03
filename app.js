@@ -20,7 +20,20 @@ const LS='ciab-painel-v1';
 function lsLoad(){try{const r=localStorage.getItem(LS);if(r)ov=JSON.parse(r)||{}}catch(e){}}
 function lsSave(){try{localStorage.setItem(LS,JSON.stringify(ov))}catch(e){}}
 lsLoad();
-function allProjects(){
+/* filtro global de produtos (vale em todas as abas e nas exportações) */
+function renderGProd(){const box=$('#gprod');if(!box)return;const dl=$('#gprodLista');if(dl&&!dl.children.length)dl.innerHTML=allProjects0().map(p=>'<option value="'+esc((p.codigo||p.id)+' · '+p.sku)+'">').join('');
+  const sel=allProjects0().filter(p=>GPROD.includes(p.id));
+  $('#gprodChips').innerHTML=sel.map(p=>'<span class="pill neu" title="'+esc(p.sku)+'">'+esc(p.codigo||p.id)+' <button class="btn ghost" style="padding:0 3px" data-gprm="'+esc(p.id)+'" aria-label="Tirar">✕</button></span>').join('')+(sel.length?'<button class="btn ghost" data-gprm="*">limpar</button>':'');
+  box.classList.toggle('ativo',!!sel.length)}
+function salvarGProd(){try{localStorage.setItem('ciab-gprod',JSON.stringify(GPROD))}catch(e){}renderGProd();renderAll()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-gprm]');if(!b)return;if(b.dataset.gprm==='*')GPROD=[];else GPROD=GPROD.filter(x=>x!==b.dataset.gprm);salvarGProd()});
+document.addEventListener('input',e=>{if(e.target.id!=='gprodIn')return;const v=e.target.value;const c=normK0(v.split(' · ')[0]);const p=v.includes(' · ')&&allProjects0().find(x=>normK0(x.codigo||x.id)===c);if(p){if(!GPROD.includes(p.id))GPROD.push(p.id);e.target.value='';salvarGProd()}});
+document.addEventListener('keydown',e=>{if(e.target.id!=='gprodIn'||e.key!=='Enter')return;e.preventDefault();const v=semAc(e.target.value.trim());if(!v)return;const ts=v.split(/\s+/);const ps=allProjects0().filter(p=>ts.every(t=>semAc([p.codigo,p.id,p.sku,p.colecao].join(' ')).includes(t)));ps.forEach(p=>{if(!GPROD.includes(p.id))GPROD.push(p.id)});e.target.value='';salvarGProd();setSave('ok',ps.length+' produto(s) no filtro')});
+let GPROD=[];try{GPROD=JSON.parse(localStorage.getItem('ciab-gprod')||'[]')||[]}catch(e){}let EXP_FILTRO=false;
+function vis(p){return !GPROD.length||GPROD.includes(p.id)}
+function codsVis(){if(!GPROD.length)return null;const S=new Set();allProjects0().filter(vis).forEach(p=>{if(p.codigo)S.add(normK0(p.codigo));envDe(p).forEach(c=>S.add(normK0(c)))});return S}
+function allProjects(){const a=allProjects0();return EXP_FILTRO&&GPROD.length?a.filter(vis):a}
+function allProjects0(){
   const base=D.projetos.map(p=>p);
   Object.keys(ov).forEach(id=>{const o=ov[id];if(o&&o.custom&&!o.removido)base.push(Object.assign({id,comps:[],rec:0,p2:0,estrutura:false,novo:true},o.custom))});
   return base;
@@ -97,7 +110,7 @@ function renderKpis(){
 /* ---------- ENTREGAS ---------- */
 let colFilter='';
 function renderEntregas(){
-  const ps=allProjects(),cols={};
+  const ps=allProjects().filter(vis),cols={};
   ps.forEach(p=>{const c=cols[p.colecao]||(cols[p.colecao]={n:0,t:0,r:0});c.n++;c.t+=total(p);c.r+=p.rec||0});
   $('#colTiles').innerHTML=Object.entries(cols).map(([k,c])=>{const pc=c.t?c.r/c.t*100:0;return '<button class="tile" data-col="'+esc(k)+'" aria-pressed="'+(colFilter===k)+'"><span class="eyebrow">'+esc(k)+' · '+c.n+' SKUs</span><span class="big">'+fmtI.format(c.r)+' <span class="muted">/ '+fmtI.format(c.t)+'</span></span><div class="prog"><i style="width:'+pc.toFixed(1)+'%"></i></div><span class="note">'+pc.toFixed(0)+'% recebido</span></button>'}).join('');
   const q=$('#entSearch').value.trim().toLowerCase(),sf=$('#entStatus').value;
@@ -114,7 +127,7 @@ $('#entSearch').addEventListener('input',renderEntregas);$('#entStatus').addEven
 let cur=D.projetos[0].id;
 function renderPlist(){
   const q=$('#simSearch').value.trim().toLowerCase();
-  $('#plist').innerHTML=allProjects().filter(p=>!q||[p.sku,p.codigo,p.colecao].join(' ').toLowerCase().includes(q)).map(p=>{const c=calc(p);
+  $('#plist').innerHTML=allProjects().filter(vis).filter(p=>!q||[p.sku,p.codigo,p.colecao].join(' ').toLowerCase().includes(q)).map(p=>{const c=calc(p);
     const tag=c.semEstrutura?'<span class="pill bad">sem estrutura</span>':c.falta?'<span class="pill warn">custo faltando</span>':'<span class="mono" style="font-size:.78rem">'+fmtR.format(c.unit)+'/un</span>';
     return '<button class="pitem" data-id="'+esc(p.id)+'" aria-current="'+(p.id===cur)+'"><span class="nm" title="'+esc(p.sku)+'">'+esc(p.sku)+'</span>'+tag+'<span class="cd">'+esc(p.codigo||p.colecao)+'</span><span class="cd" style="text-align:right">'+fmtI.format(c.Q)+' un</span></button>'}).join('');
 }
@@ -208,7 +221,7 @@ $('#novoForm').addEventListener('submit',e=>{e.preventDefault();
 });
 
 /* ---------- CARTEIRA ---------- */
-function cartRows(){return allProjects().map(p=>({p,c:calc(p),inc:incluir(p)}))}
+function cartRows(){return allProjects().filter(vis).map(p=>({p,c:calc(p),inc:incluir(p)}))}
 let cartQ='',cartF='todos';
 const semAc=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 function cartFiltro({p,c,inc}){
@@ -513,9 +526,17 @@ let EMP='';try{EMP=localStorage.getItem('ciab-emp')||''}catch(e){}
 function empChips(sel){const L=empresasGrupo();if(EMP&&!L.some(x=>x.doc===EMP))EMP='';
   $(sel).innerHTML='<button class="chip" data-emp="" aria-pressed="'+(EMP==='')+'">Grupo econômico</button>'+L.map(x=>'<button class="chip" data-emp="'+x.doc+'" aria-pressed="'+(EMP===x.doc)+'" title="CNPJ '+fmtCnpj(x.doc)+'">'+esc(x.nome)+'</button>').join('')}
 function setEmp(d){EMP=d;try{localStorage.setItem('ciab-emp',d)}catch(e){}renderAll()}
+/* filtro por produto (um ou vários) e seleção de notas para exportar */
+let PRODS=[];const SELN=new Set();
+function umMatcher(v){const c0=normK0(String(v).split(' · ')[0]);const p=allProjects().find(x=>normK0(x.codigo)===c0);
+  if(p){const cs=new Set([c0,...envDe(p).map(normK0)]);return{nome:p.codigo,titulo:p.codigo+' · '+p.sku,cods:[...cs],f:i=>cs.has(normK0(i[0]))}}
+  const ts=semAc(v).split(/\s+/).filter(Boolean);return{nome:v,titulo:v,f:i=>{const a=semAc(i[0]+' '+i[1]);return ts.every(t=>a.includes(t))}}}
+function prodMatcher(){const el=$('#notaProd');const lista=PRODS.concat(el&&el.value.trim()?[el.value.trim()]:[]).concat(PRODS.length||(el&&el.value.trim())?[]:allProjects0().filter(p=>GPROD.includes(p.id)&&p.codigo).map(p=>p.codigo));if(!lista.length)return null;const ms=lista.map(umMatcher);
+  return{nome:ms.map(m=>m.nome).join('+'),lista:ms,f:i=>ms.some(m=>m.f(i))}}
+function notasExport(){const r=notasLista();return SELN.size?r.filter(n=>SELN.has(n.chave)):r}
 function notasLista(){
-  const q=$('#notaSearch').value.trim().toLowerCase();
-  return Object.values(notas).filter(n=>(!EMP||empNota(n).doc===EMP)&&(!notaFiltro||n.tipo===notaFiltro)&&(!q||[n.num,n.emit,n.dest,n.natOp,n.chave].concat(n.itens.map(i=>i[0]+' '+i[1])).join(' ').toLowerCase().includes(q))).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const q=$('#notaSearch').value.trim().toLowerCase();const PM=prodMatcher();const de=($('#notaDe')||{}).value||'',ate=($('#notaAte')||{}).value||'';
+  return Object.values(notas).filter(n=>(!EMP||empNota(n).doc===EMP)&&(!notaFiltro||n.tipo===notaFiltro)&&(!de||(n.data||'')>=de)&&(!ate||(n.data||'')<=ate)&&(!PM||n.itens.some(PM.f))&&(!q||[n.num,n.emit,n.dest,n.natOp,n.chave].concat(n.itens.map(i=>i[0]+' '+i[1])).join(' ').toLowerCase().includes(q))).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
 }
 function renderNotas(){
   empChips('#notaEmp');
@@ -526,12 +547,19 @@ function renderNotas(){
   const sum=a=>a.reduce((x,n)=>x+(n.vNF||0),0);
   $('#notaResumo').innerHTML='<div class="box"><div class="eyebrow">Entradas'+(EMP?' · '+esc(empNome(EMP)):'')+'</div><div class="v num">'+E.length+'</div><div class="note">'+fmtR0.format(sum(E))+'</div></div><div class="box"><div class="eyebrow">Saídas'+(EMP?' · '+esc(empNome(EMP)):'')+'</div><div class="v num">'+S.length+'</div><div class="note">'+fmtR0.format(sum(S))+'</div></div><div class="box"><div class="eyebrow">Itens novos no estoque</div><div class="v num">'+fmtI.format(Object.values(XIN).reduce((a,b)=>a+b,0))+'</div><div class="note">un. de entradas fora da planilha</div></div>';
   document.querySelectorAll('#notaChips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.f===notaFiltro));
-  const rows=notasLista();
+  const rows=notasLista();const PM=prodMatcher();
+  {const dl=$('#notaProdLista');if(dl&&!dl.children.length)dl.innerHTML=allProjects().filter(p=>p.codigo).map(p=>'<option value="'+esc(p.codigo+' · '+p.sku)+'">').join('')}
+  {const el=$('#notaProdRes');if(el){let h2='';
+    if(PRODS.length)h2+='<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:4px"><span class="eyebrow">Produtos</span>'+PRODS.map((v,k)=>'<span class="pill neu">'+esc(v)+' <button class="btn ghost" style="padding:0 4px" data-rmprod="'+k+'" aria-label="Tirar">✕</button></span>').join('')+'<button class="btn ghost" data-rmprod="all">limpar produtos</button></div>';
+    if(PM){let qe=0,ve=0,qs=0,vs=0;rows.forEach(n=>{if(n.cancelada)return;n.itens.forEach(i=>{if(!PM.f(i))return;if(n.tipo==='entrada'){qe+=+i[3]||0;ve+=+i[5]||0}else{qs+=+i[3]||0;vs+=+i[5]||0}})});
+      h2+='<div>'+PM.lista.map(m=>'<b>'+esc(m.titulo)+'</b>'+(m.cods?' <span class="note mono">('+esc(m.cods.join(', '))+')</span>':'')).join(' + ')+' — '+rows.length+' nota(s) · entradas <b>'+fmtI.format(qe)+' un.</b> ('+fmtR0.format(ve)+') · saídas <b>'+fmtI.format(qs)+' un.</b> ('+fmtR0.format(vs)+')<span class="note"> · canceladas não somam · o CSV sai só com as linhas desses produtos</span></div>'}
+    if(SELN.size)h2+='<div class="row" style="gap:6px;margin-top:4px"><span class="pill warn">'+SELN.size+' nota(s) selecionada(s) — a exportação sai só com elas</span><button class="btn ghost" data-selnota="limpar">limpar seleção</button></div>';
+    el.hidden=!h2;el.innerHTML=h2}}
   if(!all.length){$('#notasTbl').innerHTML='<tbody><tr><td class="muted" style="padding:18px">'+(EMP&&todas.length?'Nenhuma nota desta empresa.</td></tr></tbody>':'Nenhuma nota importada ainda. Arraste os XMLs de NF-e (ou o .zip exportado do Bling) na área acima.</td></tr></tbody>');return}
-  let h='<thead><tr><th>Tipo</th><th>Nº</th><th>Emissão</th><th>Emitente</th><th>Destinatário</th><th>Natureza</th><th class="n">Itens</th><th class="n">Valor</th><th></th><th></th></tr></thead><tbody>';
+  let h='<thead><tr><th><input type="checkbox" data-selnota="todas" title="Selecionar todas as notas filtradas" aria-label="Selecionar todas"'+(rows.length&&rows.every(n=>SELN.has(n.chave))?' checked':'')+'></th><th>Tipo</th><th>Nº</th><th>Emissão</th><th>Emitente</th><th>Destinatário</th><th>Natureza</th><th class="n">'+(PM?'Qtd do produto':'Itens')+'</th><th class="n">'+(PM?'Valor do produto':'Valor')+'</th><th></th><th></th></tr></thead><tbody>';
   rows.forEach(n=>{
-    h+='<tr class="nrow" data-ch="'+esc(n.chave)+'" style="cursor:pointer"><td><span class="pill '+(n.tipo==='entrada'?'ok':'warn')+'">'+(n.tipo==='entrada'?'Entrada':'Saída')+'</span></td><td class="mono">'+esc(n.num)+'</td><td class="mono">'+(n.data?n.data.split('-').reverse().join('/'):'—')+'</td><td>'+esc(short(n.emit))+'</td><td>'+esc(short(n.dest))+'</td><td class="note">'+esc(n.natOp)+'</td><td class="n">'+n.itens.length+'</td><td class="n">'+fmtR.format(n.vNF||0)+'</td><td>'+(n.cancelada?'<span class="pill bad">cancelada</span> ':'')+(BASE_CH.has(n.chave)?'<span class="pill neu">já na planilha</span>':'')+'</td><td style="white-space:nowrap"><button class="btn ghost" data-tg="'+esc(n.chave)+'" title="Trocar entrada/saída">⇄</button><button class="btn ghost" data-rm="'+esc(n.chave)+'" aria-label="Excluir nota">✕</button></td></tr>';
-    if(notaAberta===n.chave){h+='<tr><td colspan="10" style="background:var(--sunk)"><div class="note mono" style="margin-bottom:6px">Chave '+esc(n.chave)+'</div><table><thead><tr><th>Código</th><th>Descrição</th><th>Unid.</th><th class="n">Qtd</th><th class="n">Valor un.</th><th class="n">Total</th><th>CFOP</th></tr></thead><tbody>'+n.itens.map(i=>'<tr><td class="mono">'+esc(i[0])+'</td><td>'+esc(i[1])+'</td><td>'+esc(i[2])+'</td><td class="n">'+fmtI.format(i[3])+'</td><td class="n">'+fmtU.format(i[4])+'</td><td class="n">'+fmtR.format(i[5])+'</td><td class="mono">'+esc(i[6])+'</td></tr>').join('')+'</tbody></table></td></tr>'}
+    h+='<tr class="nrow" data-ch="'+esc(n.chave)+'" style="cursor:pointer"><td><input type="checkbox" data-selnota="'+esc(n.chave)+'" aria-label="Selecionar nota"'+(SELN.has(n.chave)?' checked':'')+'></td><td><span class="pill '+(n.tipo==='entrada'?'ok':'warn')+'">'+(n.tipo==='entrada'?'Entrada':'Saída')+'</span></td><td class="mono">'+esc(n.num)+'</td><td class="mono">'+(n.data?n.data.split('-').reverse().join('/'):'—')+'</td><td>'+esc(short(n.emit))+'</td><td>'+esc(short(n.dest))+'</td><td class="note">'+esc(n.natOp)+'</td><td class="n">'+(PM?fmtI.format(n.itens.filter(PM.f).reduce((a,i)=>a+(+i[3]||0),0)):n.itens.length)+'</td><td class="n">'+fmtR.format(PM?n.itens.filter(PM.f).reduce((a,i)=>a+(+i[5]||0),0):(n.vNF||0))+'</td><td>'+(n.cancelada?'<span class="pill bad">cancelada</span> ':'')+(BASE_CH.has(n.chave)?'<span class="pill neu">já na planilha</span>':'')+'</td><td style="white-space:nowrap"><button class="btn ghost" data-tg="'+esc(n.chave)+'" title="Trocar entrada/saída">⇄</button><button class="btn ghost" data-rm="'+esc(n.chave)+'" aria-label="Excluir nota">✕</button></td></tr>';
+    if(notaAberta===n.chave){h+='<tr><td colspan="11" style="background:var(--sunk)"><div class="note mono" style="margin-bottom:6px">Chave '+esc(n.chave)+'</div><table><thead><tr><th>Código</th><th>Descrição</th><th>Unid.</th><th class="n">Qtd</th><th class="n">Valor un.</th><th class="n">Total</th><th>CFOP</th></tr></thead><tbody>'+n.itens.map(i=>'<tr'+(PM&&PM.f(i)?' style="background:var(--hl,#fde7f3);font-weight:600"':'')+'><td class="mono">'+esc(i[0])+'</td><td>'+esc(i[1])+'</td><td>'+esc(i[2])+'</td><td class="n">'+fmtI.format(i[3])+'</td><td class="n">'+fmtU.format(i[4])+'</td><td class="n">'+fmtR.format(i[5])+'</td><td class="mono">'+esc(i[6])+'</td></tr>').join('')+'</tbody></table></td></tr>'}
   });
   $('#notasTbl').innerHTML=h+'</tbody>';
 }
@@ -568,14 +596,20 @@ $('#notaEmp').addEventListener('click',e=>{const c=e.target.closest('[data-emp]'
 $('#notaEmpTbl').addEventListener('click',e=>{const c=e.target.closest('tr[data-emp]');if(c&&c.dataset.emp)setEmp(c.dataset.emp)});
 $('#notaChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;notaFiltro=c.dataset.f;renderNotas()});
 $('#notaSearch').addEventListener('input',renderNotas);
+['notaDe','notaAte'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('change',renderNotas)});
+{const pe=$('#notaProd');if(pe){const add=()=>{const v=pe.value.trim();if(!v)return;if(!PRODS.includes(v))PRODS.push(v);pe.value='';renderNotas()};
+  pe.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}});
+  pe.addEventListener('input',e=>{const v=pe.value;if(v.includes(' · ')&&[...$('#notaProdLista').options].some(o=>o.value===v))add();else renderNotas()})}}
+document.addEventListener('click',e=>{const r=e.target.closest('[data-rmprod]'),c=e.target.closest('[data-selnota="limpar"]');if(r){if(r.dataset.rmprod==='all')PRODS=[];else PRODS.splice(+r.dataset.rmprod,1);renderNotas()}if(c){SELN.clear();renderNotas()}});
 $('#notasTbl').addEventListener('click',e=>{
+  const sb=e.target.closest('[data-selnota]');if(sb){const k=sb.dataset.selnota;if(k==='todas'){const r=notasLista();if(sb.checked)r.forEach(n=>SELN.add(n.chave));else r.forEach(n=>SELN.delete(n.chave))}else{if(sb.checked)SELN.add(k);else SELN.delete(k)}renderNotas();return}
   const tgb=e.target.closest('[data-tg]'),rm=e.target.closest('[data-rm]');
   if(tgb){const n=notas[tgb.dataset.tg];n.mod=true;n.tipo=n.tipo==='entrada'?'saida':'entrada';saveNota(n.chave);applyNotas();renderAll();return}
   if(rm){const ch=rm.dataset.rm;if(rm.dataset.ok){if(notas[ch]&&notas[ch].base)REMOV.add(ch);delete notas[ch];saveNota(ch);applyNotas();renderAll()}else{rm.dataset.ok='1';rm.textContent='Excluir?';setTimeout(()=>{if(rm.isConnected){delete rm.dataset.ok;rm.textContent='✕'}},3000)}return}
   const r=e.target.closest('.nrow');if(r){notaAberta=notaAberta===r.dataset.ch?null:r.dataset.ch;renderNotas()}
 });
 $('#expXml').addEventListener('click',async e=>{ULT_EXPORT=['notas'];
-  const btn=e.currentTarget,rows=notasLista();
+  const btn=e.currentTarget,rows=notasExport();
   if(!rows.length){btn.textContent='Nenhum XML para exportar';setTimeout(()=>btn.textContent='Exportar XML (.zip)',2000);return}
   if(!window.JSZip){btn.textContent='Compactador indisponível';return}
   btn.textContent='Preparando…';const z=new JSZip();for(const n of rows){const x=await xmlDe(n);if(x)z.file((n.tipo==='entrada'?'entrada':'saida')+'/NFe'+n.chave+'.xml',x)}btn.textContent='Exportar XML (.zip)';
@@ -585,8 +619,8 @@ $('#expXml').addEventListener('click',async e=>{ULT_EXPORT=['notas'];
 $('#expCsv').addEventListener('click',e=>{ULT_EXPORT=['notas'];
   const L=[['Tipo','Chave de Acesso','Número NF','Data Emissão','Emitente','Destinatário','Código','Descrição','Unid.','Qtd','Valor Unit.','Valor Total','CFOP'].join(';')];
   const n2=x=>String(x).replace('.',',');const cl=s=>String(s||'').replace(/;/g,',');
-  notasLista().forEach(n=>n.itens.forEach(i=>L.push([n.tipo==='entrada'?'Entrada':'Saída',n.chave,n.num,(n.data||'').split('-').reverse().join('/'),cl(n.emit),cl(n.dest),cl(i[0]),cl(i[1]),cl(i[2]),n2(i[3]),n2(i[4]),n2(i[5]),i[6]].join(';'))));
-  baixar('notas_'+(notaFiltro||'todas')+'_itens.csv','﻿'+L.join('\n'),e.currentTarget);
+  const PM=prodMatcher();notasExport().forEach(n=>n.itens.filter(i=>!PM||PM.f(i)).forEach(i=>L.push([n.tipo==='entrada'?'Entrada':'Saída',n.chave,n.num,(n.data||'').split('-').reverse().join('/'),cl(n.emit),cl(n.dest),cl(i[0]),cl(i[1]),cl(i[2]),n2(i[3]),n2(i[4]),n2(i[5]),i[6]].join(';'))));
+  baixar('notas_'+(notaFiltro||'todas')+(PM?'_'+semAc(PM.nome).replace(/[^a-z0-9]+/g,'-').slice(0,40):'')+'_itens.csv','﻿'+L.join('\n'),e.currentTarget);
 });
 applyNotas();
 
@@ -700,7 +734,7 @@ function estPorCod(){const E={};(estoqueAtual&&estoqueAtual.itens||[]).forEach(i
 function renderVendas(){
   empChips('#venEmp');{const sel=$('#venEmpArq');const v=sel.value;sel.innerHTML='<option value="">Grupo / não informada</option>'+empresasGrupo().map(x=>'<option value="'+x.doc+'">'+esc(x.nome)+'</option>').join('');sel.value=[...sel.options].some(o=>o.value===v)?v:(EMP||'')}
   {const sel=$('#venSerieArq');if(sel){const v=sel.value;const ss=[...new Set(['1','2'].concat(vendasLinhas().map(x=>x[7]).filter(Boolean)))].sort();sel.innerHTML='<option value="">Não informada</option>'+ss.map(x=>'<option value="'+esc(x)+'">Série '+esc(x)+'</option>').join('');sel.value=v}}
-  const LG=vendasLinhas();const LE=LG.filter(x=>!EMP||x[6]===EMP);const SS=[...new Set(LE.map(x=>x[7]||''))].sort();if(SERIE&&!SS.includes(SERIE))SERIE='';
+  const LG=vendasLinhas();const CVv=codsVis();const LE=LG.filter(x=>(!EMP||x[6]===EMP)&&(!CVv||CVv.has(normK0(x[1]))));const SS=[...new Set(LE.map(x=>x[7]||''))].sort();if(SERIE&&!SS.includes(SERIE))SERIE='';
   $('#venSerie').innerHTML=SS.length>1||SS[0]?'<button class="chip" data-s="" aria-pressed="'+(SERIE==='')+'">Todas as séries</button>'+SS.map(x=>'<button class="chip" data-s="'+esc(x)+'" aria-pressed="'+(SERIE===x)+'">'+(x?'Série '+esc(x):'Sem série')+'</button>').join(''):'';
   const L=LE.filter(x=>!SERIE||(x[7]||'')===SERIE);const canais={};L.forEach(x=>{canais[x[5]]=(canais[x[5]]||0)+x[3]});
   {const G={};LE.forEach(x=>{const k=(x[6]||'')+'|'+(x[7]||'');const g=G[k]||(G[k]={q:0,v:0});g.q+=x[3];g.v+=x[4]});const ks=Object.keys(G).sort((a,b)=>empNome(a.split('|')[0]).localeCompare(empNome(b.split('|')[0]))||a.localeCompare(b));const tq=ks.reduce((t,k)=>t+G[k].q,0),tv=ks.reduce((t,k)=>t+G[k].v,0);
@@ -737,7 +771,7 @@ function renderEstoque(){
   $('#estResumo').innerHTML='<div class="box hl"><div class="eyebrow">Estoque total</div><div class="v num">'+fmtI.format(tot)+'</div><div class="note">todos os locais</div></div><div class="box"><div class="eyebrow">Empenhado</div><div class="v num">'+fmtI.format(te)+'</div><div class="note">pedidos e propostas em aberto</div></div><div class="box"><div class="eyebrow">Disponível</div><div class="v num">'+fmtI.format(Math.max(0,tot-te))+'</div><div class="note">livre para vender</div></div><div class="box"><div class="eyebrow">Falta para pedidos</div><div class="v num">'+fmtI.format(tf)+'</div></div><div class="box"><div class="eyebrow">Ruptura, zerados e faltas</div><div class="v num">'+rup+'</div><div class="note">venda média dos últimos 3 meses</div></div>';
   document.querySelectorAll('#estChips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.f===estFiltro));
   const s2=$('#estSearch').value.trim().toLowerCase();
-  const F=rows.filter(r=>(!s2||(r.i.cod+' '+r.i.desc+' '+(r.p?r.p.colecao+' '+r.p.sku:'')).toLowerCase().includes(s2))&&(!estFiltro||(estFiltro==='proj'?r.p:estFiltro==='rup'?r.st[0]==='bad':estFiltro==='emp'?r.emp||r.falta:estFiltro.startsWith('loc:')?(r.i.loc&&r.i.loc[estFiltro.slice(4)]):r.st[1].startsWith('Parado'))))
+  const CV=codsVis();const F=rows.filter(r=>(!CV||CV.has(normK0(r.i.cod)))&&(!s2||(r.i.cod+' '+r.i.desc+' '+(r.p?r.p.colecao+' '+r.p.sku:'')).toLowerCase().includes(s2))&&(!estFiltro||(estFiltro==='proj'?r.p:estFiltro==='rup'?r.st[0]==='bad':estFiltro==='emp'?r.emp||r.falta:estFiltro.startsWith('loc:')?(r.i.loc&&r.i.loc[estFiltro.slice(4)]):r.st[1].startsWith('Parado'))))
     .sort((a,b)=>b.falta-a.falta||(a.cob==null)-(b.cob==null)||(a.cob||0)-(b.cob||0));
   $('#estTbl').innerHTML='<thead><tr><th>Código</th><th>Produto</th><th>Coleção</th>'+LOCAIS.map(l=>'<th class="n">'+esc(l.nome)+'</th>').join('')+'<th class="n">Total</th><th class="n">Empenhado</th><th class="n">Disponível</th><th class="n">Venda/mês</th><th class="n">Cobertura</th><th>Situação</th><th>Lotes</th></tr></thead><tbody>'
     +F.slice(0,700).map(r=>'<tr><td class="mono">'+esc(r.i.cod)+'</td><td>'+esc(r.p?r.p.sku:r.i.desc)+'</td><td>'+esc(r.p?r.p.colecao:'—')+'</td>'+LOCAIS.map(l=>'<td class="n">'+(r.i.loc&&r.i.loc[l.id]!=null?fmtI.format(r.i.loc[l.id]):'—')+autoDet(l,r.i.cod)+'</td>').join('')+'<td class="n"><b>'+fmtI.format(r.i.qtd)+'</b></td><td class="n">'+(r.emp?fmtI.format(r.emp):'—')+'</td><td class="n">'+fmtI.format(r.disp)+(r.falta?' <span class="pill bad">falta '+fmtI.format(r.falta)+'</span>':'')+'</td><td class="n">'+(r.m?fmtI.format(Math.round(r.m)):'—')+'</td><td class="n">'+(r.cob==null?'—':r.cob.toFixed(1).replace('.',',')+' mês')+'</td><td><span class="pill '+r.st[0]+'">'+r.st[1]+'</span></td><td class="note">'+(r.i.lotes&&r.i.lotes.length?esc(r.i.lotes.slice(0,3).map(l=>l[0]+(l[2]?' (val. '+dBR(l[2])+')':'')).join(', ')+(r.i.lotes.length>3?'…':'')):'')+'</td></tr>').join('')+'</tbody>';
@@ -827,7 +861,7 @@ function renderComercial(){
   // empenho por produto
   const cods=new Set(Object.keys(porCod));const sp=($('#comProdSearch').value||'').trim().toLowerCase();
   const linhas=[...cods].map(c=>{const e=porCod[c],est=E[c]?E[c].qtd:0,p=P[c];return{c,e,est,p,desc:p?p.colecao+' · '+p.sku:(E[c]&&E[c].desc)||e.desc,livre:Math.max(0,est-e.empPed-e.empProp),rec:aReceber(c)}})
-    .filter(x=>!sp||(x.c+' '+x.desc).toLowerCase().includes(sp)).sort((a,b)=>b.e.falta-a.e.falta||a.c.localeCompare(b.c));
+    .filter(x=>{const CV=codsVis();return(!CV||CV.has(normK0(x.c)))&&(!sp||(x.c+' '+x.desc).toLowerCase().includes(sp))}).sort((a,b)=>b.e.falta-a.e.falta||a.c.localeCompare(b.c));
   $('#comProdTbl').innerHTML=!linhas.length?'<tbody><tr><td class="muted" style="padding:14px">Sem pedidos ou propostas em aberto.</td></tr></tbody>':'<thead><tr><th>Código</th><th>Produto</th>'+LOCAIS.map(l=>'<th class="n">'+esc(l.nome)+'</th>').join('')+'<th class="n">Estoque total</th><th class="n">Pedidos</th><th class="n">Propostas</th><th class="n">Empenhado</th><th class="n">Livre</th><th class="n">Falta</th><th class="n">A receber</th></tr></thead><tbody>'
     +linhas.slice(0,500).map(x=>'<tr><td class="mono">'+esc(x.c)+'</td><td>'+esc(x.desc)+'</td>'+LOCAIS.map(l=>'<td class="n">'+(E[x.c]&&E[x.c].loc[l.id]?fmtI.format(E[x.c].loc[l.id]):'—')+'</td>').join('')+'<td class="n">'+fmtI.format(x.est)+'</td><td class="n">'+fmtI.format(x.e.ped)+'</td><td class="n">'+fmtI.format(x.e.prop)+'</td><td class="n">'+fmtI.format(x.e.empPed+x.e.empProp)+'</td><td class="n">'+fmtI.format(x.livre)+'</td><td class="n">'+(x.e.falta?'<span class="pill bad">'+fmtI.format(x.e.falta)+'</span>':'—')+'</td><td class="n">'+(x.rec?fmtI.format(x.rec):'—')+'</td></tr>').join('')+'</tbody>';
 }
@@ -945,7 +979,7 @@ const REL={
   compras:()=>{const L=[['Compras por mês','Valor (R$)']];Object.entries(D.comprasMes).sort().forEach(([m,v])=>L.push([m.split('-').reverse().join('/'),R2(v)]));
     L.push([]);L.push(['Código','Descrição','Fornecedor','Qtd comprada','Último preço (R$)','Última NF']);D.catalogo.slice().sort((a,b)=>String(b[5]).localeCompare(String(a[5]))).forEach(r=>L.push([r[0],r[1],r[2],r[3],r[4],dBR(r[5])]));return L},
   notas:()=>{const L=[['Tipo','Chave','Número','Emissão','Emitente','CNPJ emitente','Destinatário','CNPJ destinatário','Natureza','Valor NF (R$)','Código','Descrição','Unid.','Qtd','Valor un.','Valor total','CFOP','Situação']];
-    notasLista().forEach(n=>n.itens.forEach(i=>L.push([n.tipo==='entrada'?'Entrada':'Saída',n.chave,n.num,dBR(n.data),n.emit,n.emitDoc||'',n.dest,n.destDoc||'',n.natOp,R2(n.vNF),i[0],i[1],i[2],i[3],i[4],i[5],i[6],n.cancelada?'Cancelada':(BASE_CH.has(n.chave)?'Já na planilha':'')])));return L},
+    {const PM=prodMatcher();notasExport().forEach(n=>n.itens.filter(i=>!PM||PM.f(i)).forEach(i=>L.push([n.tipo==='entrada'?'Entrada':'Saída',n.chave,n.num,dBR(n.data),n.emit,n.emitDoc||'',n.dest,n.destDoc||'',n.natOp,R2(n.vNF),i[0],i[1],i[2],i[3],i[4],i[5],i[6],n.cancelada?'Cancelada':(BASE_CH.has(n.chave)?'Já na planilha':'')])))}return L},
   vendas:()=>{const L=[['Data','Código','Descrição','Qtd','Valor (R$)','Canal','Empresa','Série']];vendasLinhas().filter(x=>(!EMP||x[6]===EMP)&&(!SERIE||(x[7]||'')===SERIE)).forEach(x=>L.push([dBR(x[0]),x[1],x[2],x[3],R2(x[4]),x[5],empNome(x[6]),x[7]||'']));return L},
   estoque:()=>{const V=vendasPorCod(),P=projPorCod(),EP=calcEmpenho().porCod;const L=[['Código','Produto','Coleção'].concat(LOCAIS.map(l=>'Estoque '+l.nome),['Estoque total','Empenhado','Disponível','Falta p/ pedidos','Venda média/mês','Cobertura (meses)','Lotes'])];
     (estoqueAtual&&estoqueAtual.itens||[]).forEach(i=>{const v=V[i.cod],m=v?mediaMensal(v):0,p=P[i.cod],e=EP[i.cod],emp=e?e.empPed+e.empProp:0,disp=i.qtd-emp;L.push([i.cod,p?p.sku:i.desc,p?p.colecao:''].concat(LOCAIS.map(l=>i.loc&&i.loc[l.id]!=null?i.loc[l.id]:''),[i.qtd,emp,disp,e?e.falta:0,R2(m),m?R2(Math.max(0,disp)/m):'',(i.lotes||[]).map(l=>l[0]+(l[2]?' val '+dBR(l[2]):'')).join(' | ')]))});return L},
@@ -960,9 +994,9 @@ const REL={
 };
 const ABA_NOME={resumo:'Resumo',entregas:'Entregas',estruturas:'Custos - Estruturas',carteira:'Carteira',compras:'Compras',notas:'Notas XML',vendas:'Vendas',estoque:'Estoque por local',comercial:'Comercial - Pedidos',empenho:'Comercial - Empenho'};
 const TAB_REL={inicio:['resumo'],entregas:['entregas'],simulador:['estruturas'],produtos:['estruturas'],carteira:['carteira'],compras:['compras'],notas:['notas'],vendas:['vendas'],comercial:['comercial','empenho'],estoque:['estoque']};
-function montarXlsx(chaves){const wb=XLSX.utils.book_new();chaves.forEach(k=>{const rows=REL[k]();const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=(rows.find(r=>r.length>3)||rows[0]||[]).map((_,i)=>({wch:Math.min(48,Math.max(10,...rows.slice(0,200).map(r=>String(r[i]==null?'':r[i]).length+2)))}));XLSX.utils.book_append_sheet(wb,ws,ABA_NOME[k].slice(0,31))});
+function montarXlsx(chaves){const wb=XLSX.utils.book_new();EXP_FILTRO=true;try{chaves.forEach(k=>{const rows=REL[k]();const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=(rows.find(r=>r.length>3)||rows[0]||[]).map((_,i)=>({wch:Math.min(48,Math.max(10,...rows.slice(0,200).map(r=>String(r[i]==null?'':r[i]).length+2)))}));XLSX.utils.book_append_sheet(wb,ws,ABA_NOME[k].slice(0,31))})}finally{EXP_FILTRO=false}
   return new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
-async function exportar(chaves,nome,btn){ULT_EXPORT=chaves;if(!window.XLSX){btn.textContent='Leitor de planilhas não carregou';return}const old=btn.textContent;btn.textContent='Gerando…';
+async function exportar(chaves,nome,btn){ULT_EXPORT=chaves;if(GPROD.length)nome=nome.replace(/\.xlsx$/,'_filtrado.xlsx');if(!window.XLSX){btn.textContent='Leitor de planilhas não carregou';return}const old=btn.textContent;btn.textContent='Gerando…';
   try{const blob=montarXlsx(chaves);btn.textContent=old;await baixar(nome,blob,btn)}catch(e){console.error(e);btn.textContent='Erro ao gerar o relatório';setTimeout(()=>btn.textContent=old,3000)}}
 const hoje=()=>new Date().toISOString().slice(0,10);
 $('#expTudo').addEventListener('click',e=>exportar(['resumo','entregas','estruturas','carteira','compras','notas','vendas','comercial','empenho','estoque'],'Relatorio_Cia_Beauty_'+hoje()+'.xlsx',e.currentTarget));
@@ -970,7 +1004,7 @@ $('#expAba').addEventListener('click',e=>{const t=tabs.find(x=>!$('#tab-'+x).hid
 
 $('#copyPerm').addEventListener('click',async()=>{try{const pm=await claude.use('permissions');if(pm)await pm.manage()}catch(e){$('#copyOk').textContent='Abra o menu Permissões do app (no topo da página) e libere Downloads.'}});
 $('#copyClose').addEventListener('click',()=>{$('#copyModal').hidden=true;$('#copyOk').textContent=''});
-$('#copyList').addEventListener('click',async e=>{const b=e.target.closest('[data-copy]');if(!b)return;const txt=tsv(REL[b.dataset.copy]());
+$('#copyList').addEventListener('click',async e=>{const b=e.target.closest('[data-copy]');if(!b)return;EXP_FILTRO=true;let txt;try{txt=tsv(REL[b.dataset.copy]())}finally{EXP_FILTRO=false}
   try{await navigator.clipboard.writeText(txt);$('#copyOk').textContent=ABA_NOME[b.dataset.copy]+' copiada. Abra o Excel e cole com Ctrl+V.'}
   catch(err){const ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='width:100%;height:160px';$('#copyOk').innerHTML='';$('#copyOk').appendChild(document.createTextNode('A cópia automática foi bloqueada. Selecione o texto abaixo (Ctrl+A) e copie (Ctrl+C):'));$('#copyOk').appendChild(ta);ta.focus();ta.select()}});
 /* ---------- INÍCIO ---------- */
@@ -1012,7 +1046,7 @@ const LBL={"inicio": ["Início", "Cia Beauty · projetos licenciados"], "entrega
 function showTab(t){if(!tabs.includes(t))t='inicio';$('#kpis').hidden=t!=='inicio';$('#tabTitle').textContent=t==='inicio'?('Olá'+(window.__NOME?', '+window.__NOME:'')):LBL[t][0]==='Custos'?'Custos':LBL[t][0]==='Produtos'?'Produtos':LBL[t][0]==='Carteira'?'Carteira futura':LBL[t][0]==='Compras'?'Compras de insumos':LBL[t][0]==='Notas XML'?'Notas fiscais (XML)':LBL[t][0]==='Estoque'?'Estoque':LBL[t][0]==='Comercial'?'Comercial':LBL[t][0]==='Vendas'?'Vendas':'Entregas';$('#tabSub').textContent=LBL[t][1];window.scrollTo(0,0);document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));tabs.forEach(x=>$('#tab-'+x).hidden=x!==t);if(location.hash!=='#'+t)history.replaceState(null,'','#'+t);renderAll()}
 document.querySelector('nav.tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.tab)});
 window.addEventListener('hashchange',()=>showTab(location.hash.slice(1)));
-function renderAll(){EMPENHO=null;renderKpis();const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador'){renderSim();renderSinaisSim()}if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras'){renderCompras();renderSinais();renderEmpInsumos();renderVinculos()}if(t==='notas'){renderNotas();renderEntradas()}if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
+function renderAll(){EMPENHO=null;renderKpis();try{renderGProd()}catch(x){}const t=tabs.find(x=>!$('#tab-'+x).hidden);if(t==='inicio')renderInicio();if(t==='entregas')renderEntregas();if(t==='simulador'){renderSim();renderSinaisSim()}if(t==='produtos')renderProdutos(true);if(t==='carteira')renderCarteira();if(t==='compras'){renderCompras();renderSinais();renderEmpInsumos();renderVinculos()}if(t==='notas'){renderNotas();renderEntradas()}if(t==='vendas')renderVendas();if(t==='comercial'){renderComercial();if(!BL.carregado&&!BL.pedindo){BL.pedindo=true;blStatus()}else renderBling()}if(t==='estoque')renderEstoque()}
 document.addEventListener('click',e=>{if(!e.target.closest('.searchbox')){const s=$('#sugg');if(s)s.hidden=true}});
 
 
@@ -1056,7 +1090,7 @@ function renderProdutos(animar){
   if(PD.col&&!cols.includes(PD.col))PD.col='';
   $('#pdCols').innerHTML=['<button class="chip" data-col="" aria-pressed="'+(!PD.col)+'">Todas</button>'].concat(cols.map(c=>'<button class="chip" data-col="'+esc(c)+'" aria-pressed="'+(PD.col===c)+'">'+esc(c)+' <span class="muted">'+todos.filter(p=>p.colecao===c).length+'</span></button>')).join('');
   const qq=pdNorm(PD.q).split(/\s+/).filter(Boolean);
-  const lista=todos.filter(p=>(!PD.col||p.colecao===PD.col)&&(!qq.length||qq.every(t=>pdNorm([p.sku,p.id,p.codigo,p.colecao].concat(comps(p).map(c=>c.forn+' '+c.nome)).join(' ')).includes(t))));
+  const lista=todos.filter(p=>vis(p)&&(!PD.col||p.colecao===PD.col)&&(!qq.length||qq.every(t=>pdNorm([p.sku,p.id,p.codigo,p.colecao].concat(comps(p).map(c=>c.forn+' '+c.nome)).join(' ')).includes(t))));
   if(!PD.cur||!byId(PD.cur))PD.cur=(lista[0]||todos[0]||{}).id||null;
   $('#pdGrid').innerHTML=lista.length?lista.map(p=>{const k=pdCalc(p);let u=0;k.linhas.forEach(l=>u+=l.un);return '<button class="pd-card" data-p="'+esc(p.id)+'" aria-current="'+(p.id===PD.cur&&pdAberto())+'"><span class="pd-ph">'+pdFoto(p)+'</span><b>'+esc(pdNomeCurto(p))+'</b><span class="pd-meta"><span class="num">'+esc(p.id)+'</span><span class="num">'+(k.semEstrutura?'sem estrutura':pdR3.format(u)+'/un')+'</span></span></button>'}).join(''):'<p class="note">Nenhum produto encontrado.</p>';
   if(pdAberto()){pdMontar(!!animar);pdPainel()}
