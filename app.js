@@ -27,17 +27,27 @@ function renderGProd(){const box=$('#gprod');if(!box)return;const dl=$('#gprodLi
   box.classList.toggle('ativo',!!sel.length)}
 function salvarGProd(){try{localStorage.setItem('ciab-gprod',JSON.stringify(GPROD))}catch(e){}renderGProd();renderAll()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-gprm]');if(!b)return;if(b.dataset.gprm==='*')GPROD=[];else GPROD=GPROD.filter(x=>x!==b.dataset.gprm);salvarGProd()});
-function gpBusca(){const v=semAc(($('#gprodIn')||{}).value||'').trim();const ts=v.split(/\s+/).filter(Boolean);return allProjects0().filter(p=>!ts.length||ts.every(t=>semAc([p.codigo,p.id,p.sku,p.colecao].join(' ')).includes(t)))}
-function renderGpDrop(){const d=$('#gprodDrop');if(!d)return;const L=gpBusca();const tudo=L.length&&L.every(p=>GPROD.includes(p.id));
-  d.innerHTML='<div class="row" style="gap:8px;padding:6px 8px;border-bottom:1px solid var(--line,#eee)"><label class="chk"><input type="checkbox" data-gpall'+(tudo?' checked':'')+'> <b>'+(($('#gprodIn').value||'').trim()?'Marcar os '+L.length+' encontrados':'Marcar todos ('+L.length+')')+'</b></label><span class="grow"></span><button class="btn ghost" data-gpclose>Fechar</button></div>'
-    +'<div style="max-height:320px;overflow:auto">'+(L.length?L.slice(0,300).map(p=>'<label class="chk" style="display:flex;gap:8px;padding:5px 8px;align-items:center"><input type="checkbox" data-gpone="'+esc(p.id)+'"'+(GPROD.includes(p.id)?' checked':'')+'><span class="mono note" style="min-width:86px">'+esc(p.codigo||p.id)+'</span><span>'+esc(p.sku)+'</span><span class="note" style="margin-left:auto">'+esc(p.colecao||'')+'</span></label>').join(''):'<p class="note" style="padding:8px">Nenhum produto com esse texto.</p>')+'</div>';
+/* seletor de produtos com busca e caixinhas (usado no topo e na aba Notas) */
+const PICK={g:{inp:'#gprodIn',drop:'#gprodDrop',wrap:'#gprod',get:()=>GPROD,set:ids=>{GPROD=ids;salvarGProd()}},
+  n:{inp:'#notaProd',drop:'#notaProdDrop',wrap:'#notaPick',get:()=>NPROD,set:ids=>{NPROD=ids;renderNotas()},livre:true}};
+function pkBusca(k){const v=semAc(($(PICK[k].inp)||{}).value||'').trim();const ts=v.split(/\s+/).filter(Boolean);return allProjects0().filter(p=>!ts.length||ts.every(t=>semAc([p.codigo,p.id,p.sku,p.colecao].join(' ')).includes(t)))}
+function renderPick(k){const P=PICK[k],d=$(P.drop);if(!d)return;const L=pkBusca(k),sel=P.get(),txt=($(P.inp).value||'').trim();const tudo=L.length&&L.every(p=>sel.includes(p.id));
+  d.innerHTML='<div class="row" style="gap:8px;padding:6px 8px;border-bottom:1px solid var(--line,#eee);flex-wrap:wrap"><label class="chk"><input type="checkbox" data-pkall="'+k+'"'+(tudo?' checked':'')+'> <b>'+(txt?'Marcar os '+L.length+' encontrados':'Marcar todos ('+L.length+')')+'</b></label>'
+    +(P.livre&&txt?'<button class="btn" data-pklivre="'+k+'" title="Procura essas palavras em todos os itens das notas (insumos, frascos, rótulos…)">Buscar "'+esc(txt)+'" nos itens das notas</button>':'')
+    +'<span class="grow"></span>'+(sel.length?'<button class="btn ghost" data-pkclear="'+k+'">desmarcar tudo</button>':'')+'<button class="btn ghost" data-pkclose="'+k+'">Fechar</button></div>'
+    +'<div style="max-height:320px;overflow:auto">'+(L.length?L.slice(0,300).map(p=>'<label class="chk" style="display:flex;gap:8px;padding:5px 8px;align-items:center"><input type="checkbox" data-pkone="'+k+'|'+esc(p.id)+'"'+(sel.includes(p.id)?' checked':'')+'><span class="mono note" style="min-width:86px">'+esc(p.codigo||p.id)+'</span><span>'+esc(p.sku)+'</span><span class="note" style="margin-left:auto">'+esc(p.colecao||'')+'</span></label>').join(''):'<p class="note" style="padding:8px">Nenhum produto com esse texto.'+(P.livre?' Use o botão acima para buscar nos itens das notas.':'')+'</p>')+'</div>';
   d.hidden=false}
-document.addEventListener('focusin',e=>{if(e.target.id==='gprodIn')renderGpDrop()});
-document.addEventListener('input',e=>{if(e.target.id==='gprodIn')renderGpDrop()});
-document.addEventListener('keydown',e=>{if(e.target.id==='gprodIn'&&e.key==='Escape'){$('#gprodDrop').hidden=true;e.target.blur()}});
-document.addEventListener('change',e=>{const t=e.target;if(t.dataset.gpone!=null){const id=t.dataset.gpone;GPROD=t.checked?[...new Set(GPROD.concat(id))]:GPROD.filter(x=>x!==id);salvarGProd();renderGpDrop()}
-  else if(t.dataset.gpall!=null){const ids=gpBusca().map(p=>p.id);GPROD=t.checked?[...new Set(GPROD.concat(ids))]:GPROD.filter(x=>!ids.includes(x));salvarGProd();renderGpDrop()}});
-document.addEventListener('click',e=>{const d=$('#gprodDrop');if(!d||d.hidden)return;if(e.target.closest('[data-gpclose]')||!e.target.closest('#gprod'))d.hidden=true});
+const pkDe=el=>Object.keys(PICK).find(k=>el&&el.matches&&el.matches(PICK[k].inp));
+document.addEventListener('focusin',e=>{const k=pkDe(e.target);if(k)renderPick(k)});
+document.addEventListener('input',e=>{const k=pkDe(e.target);if(k)renderPick(k)});
+document.addEventListener('keydown',e=>{const k=pkDe(e.target);if(!k)return;if(e.key==='Escape'){$(PICK[k].drop).hidden=true;e.target.blur()}
+  if(e.key==='Enter'){e.preventDefault();const L=pkBusca(k);if(L.length===1){PICK[k].set([...new Set(PICK[k].get().concat(L[0].id))]);renderPick(k)}else if(!L.length&&PICK[k].livre){addLivre(k)}}});
+function addLivre(k){const el=$(PICK[k].inp);const v=el.value.trim();if(!v)return;if(!PRODS.includes(v))PRODS.push(v);el.value='';$(PICK[k].drop).hidden=true;renderNotas()}
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.pkone){const[k,id]=t.dataset.pkone.split('|');const c=PICK[k].get();PICK[k].set(t.checked?[...new Set(c.concat(id))]:c.filter(x=>x!==id));renderPick(k)}
+  else if(t.dataset.pkall){const k=t.dataset.pkall,ids=pkBusca(k).map(p=>p.id),c=PICK[k].get();PICK[k].set(t.checked?[...new Set(c.concat(ids))]:c.filter(x=>!ids.includes(x)));renderPick(k)}});
+document.addEventListener('click',e=>{const lv=e.target.closest('[data-pklivre]');if(lv){addLivre(lv.dataset.pklivre);return}
+  const cl=e.target.closest('[data-pkclear]');if(cl){PICK[cl.dataset.pkclear].set([]);renderPick(cl.dataset.pkclear);return}
+  Object.keys(PICK).forEach(k=>{const d=$(PICK[k].drop);if(!d||d.hidden)return;if(e.target.closest('[data-pkclose="'+k+'"]')||!e.target.closest(PICK[k].wrap))d.hidden=true})});
 let GPROD=[];try{GPROD=JSON.parse(localStorage.getItem('ciab-gprod')||'[]')||[]}catch(e){}let EXP_FILTRO=false;
 function vis(p){return !GPROD.length||GPROD.includes(p.id)}
 function codsVis(){if(!GPROD.length)return null;const S=new Set();allProjects0().filter(vis).forEach(p=>{if(p.codigo)S.add(normK0(p.codigo));envDe(p).forEach(c=>S.add(normK0(c)))});return S}
@@ -536,11 +546,11 @@ function empChips(sel){const L=empresasGrupo();if(EMP&&!L.some(x=>x.doc===EMP))E
   $(sel).innerHTML='<button class="chip" data-emp="" aria-pressed="'+(EMP==='')+'">Grupo econômico</button>'+L.map(x=>'<button class="chip" data-emp="'+x.doc+'" aria-pressed="'+(EMP===x.doc)+'" title="CNPJ '+fmtCnpj(x.doc)+'">'+esc(x.nome)+'</button>').join('')}
 function setEmp(d){EMP=d;try{localStorage.setItem('ciab-emp',d)}catch(e){}renderAll()}
 /* filtro por produto (um ou vários) e seleção de notas para exportar */
-let PRODS=[];const SELN=new Set();
+let PRODS=[],NPROD=[];const SELN=new Set();
 function umMatcher(v){const c0=normK0(String(v).split(' · ')[0]);const p=allProjects().find(x=>normK0(x.codigo)===c0);
   if(p){const cs=new Set([c0,...envDe(p).map(normK0)]);return{nome:p.codigo,titulo:p.codigo+' · '+p.sku,cods:[...cs],f:i=>cs.has(normK0(i[0]))}}
   const ts=semAc(v).split(/\s+/).filter(Boolean);return{nome:v,titulo:v,f:i=>{const a=semAc(i[0]+' '+i[1]);return ts.every(t=>a.includes(t))}}}
-function prodMatcher(){const el=$('#notaProd');const lista=PRODS.concat(el&&el.value.trim()?[el.value.trim()]:[]).concat(PRODS.length||(el&&el.value.trim())?[]:allProjects0().filter(p=>GPROD.includes(p.id)&&p.codigo).map(p=>p.codigo));if(!lista.length)return null;const ms=lista.map(umMatcher);
+function prodMatcher(){const ids=NPROD.length||PRODS.length?NPROD:GPROD;const lista=allProjects0().filter(p=>ids.includes(p.id)&&p.codigo).map(p=>p.codigo).concat(PRODS);if(!lista.length)return null;const ms=lista.map(umMatcher);
   return{nome:ms.map(m=>m.nome).join('+'),lista:ms,f:i=>ms.some(m=>m.f(i))}}
 function notasExport(){const r=notasLista();return SELN.size?r.filter(n=>SELN.has(n.chave)):r}
 function notasLista(){
@@ -557,9 +567,8 @@ function renderNotas(){
   $('#notaResumo').innerHTML='<div class="box"><div class="eyebrow">Entradas'+(EMP?' · '+esc(empNome(EMP)):'')+'</div><div class="v num">'+E.length+'</div><div class="note">'+fmtR0.format(sum(E))+'</div></div><div class="box"><div class="eyebrow">Saídas'+(EMP?' · '+esc(empNome(EMP)):'')+'</div><div class="v num">'+S.length+'</div><div class="note">'+fmtR0.format(sum(S))+'</div></div><div class="box"><div class="eyebrow">Itens novos no estoque</div><div class="v num">'+fmtI.format(Object.values(XIN).reduce((a,b)=>a+b,0))+'</div><div class="note">un. de entradas fora da planilha</div></div>';
   document.querySelectorAll('#notaChips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.f===notaFiltro));
   const rows=notasLista();const PM=prodMatcher();
-  {const dl=$('#notaProdLista');if(dl&&!dl.children.length)dl.innerHTML=allProjects().filter(p=>p.codigo).map(p=>'<option value="'+esc(p.codigo+' · '+p.sku)+'">').join('')}
   {const el=$('#notaProdRes');if(el){let h2='';
-    if(PRODS.length)h2+='<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:4px"><span class="eyebrow">Produtos</span>'+PRODS.map((v,k)=>'<span class="pill neu">'+esc(v)+' <button class="btn ghost" style="padding:0 4px" data-rmprod="'+k+'" aria-label="Tirar">✕</button></span>').join('')+'<button class="btn ghost" data-rmprod="all">limpar produtos</button></div>';
+    if(PRODS.length||NPROD.length)h2+='<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:4px"><span class="eyebrow">Produtos</span>'+allProjects0().filter(p=>NPROD.includes(p.id)).map(p=>'<span class="pill neu" title="'+esc(p.sku)+'">'+esc(p.codigo||p.id)+' <button class="btn ghost" style="padding:0 4px" data-rmprod="id:'+esc(p.id)+'" aria-label="Tirar">✕</button></span>').join('')+PRODS.map((v,k)=>'<span class="pill neu" title="busca nos itens">🔍 '+esc(v)+' <button class="btn ghost" style="padding:0 4px" data-rmprod="'+k+'" aria-label="Tirar">✕</button></span>').join('')+'<button class="btn ghost" data-rmprod="all">limpar produtos</button></div>';
     if(PM){let qe=0,ve=0,qs=0,vs=0;rows.forEach(n=>{if(n.cancelada)return;n.itens.forEach(i=>{if(!PM.f(i))return;if(n.tipo==='entrada'){qe+=+i[3]||0;ve+=+i[5]||0}else{qs+=+i[3]||0;vs+=+i[5]||0}})});
       h2+='<div>'+PM.lista.map(m=>'<b>'+esc(m.titulo)+'</b>'+(m.cods?' <span class="note mono">('+esc(m.cods.join(', '))+')</span>':'')).join(' + ')+' — '+rows.length+' nota(s) · entradas <b>'+fmtI.format(qe)+' un.</b> ('+fmtR0.format(ve)+') · saídas <b>'+fmtI.format(qs)+' un.</b> ('+fmtR0.format(vs)+')<span class="note"> · canceladas não somam · o CSV sai só com as linhas desses produtos</span></div>'}
     if(SELN.size)h2+='<div class="row" style="gap:6px;margin-top:4px"><span class="pill warn">'+SELN.size+' nota(s) selecionada(s) — a exportação sai só com elas</span><button class="btn ghost" data-selnota="limpar">limpar seleção</button></div>';
@@ -606,10 +615,8 @@ $('#notaEmpTbl').addEventListener('click',e=>{const c=e.target.closest('tr[data-
 $('#notaChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;notaFiltro=c.dataset.f;renderNotas()});
 $('#notaSearch').addEventListener('input',renderNotas);
 ['notaDe','notaAte'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener('change',renderNotas)});
-{const pe=$('#notaProd');if(pe){const add=()=>{const v=pe.value.trim();if(!v)return;if(!PRODS.includes(v))PRODS.push(v);pe.value='';renderNotas()};
-  pe.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}});
-  pe.addEventListener('input',e=>{const v=pe.value;if(v.includes(' · ')&&[...$('#notaProdLista').options].some(o=>o.value===v))add();else renderNotas()})}}
-document.addEventListener('click',e=>{const r=e.target.closest('[data-rmprod]'),c=e.target.closest('[data-selnota="limpar"]');if(r){if(r.dataset.rmprod==='all')PRODS=[];else PRODS.splice(+r.dataset.rmprod,1);renderNotas()}if(c){SELN.clear();renderNotas()}});
+
+document.addEventListener('click',e=>{const r=e.target.closest('[data-rmprod]'),c=e.target.closest('[data-selnota="limpar"]');if(r){const v=r.dataset.rmprod;if(v==='all'){PRODS=[];NPROD=[]}else if(v.startsWith('id:'))NPROD=NPROD.filter(x=>x!==v.slice(3));else PRODS.splice(+v,1);renderNotas()}if(c){SELN.clear();renderNotas()}});
 $('#notasTbl').addEventListener('click',e=>{
   const sb=e.target.closest('[data-selnota]');if(sb){const k=sb.dataset.selnota;if(k==='todas'){const r=notasLista();if(sb.checked)r.forEach(n=>SELN.add(n.chave));else r.forEach(n=>SELN.delete(n.chave))}else{if(sb.checked)SELN.add(k);else SELN.delete(k)}renderNotas();return}
   const tgb=e.target.closest('[data-tg]'),rm=e.target.closest('[data-rm]');

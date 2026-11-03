@@ -209,7 +209,7 @@ svg text{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
 .ro .drop,.ro #btnNovo,.ro [data-del],.ro [data-rm],.ro [data-tg],.ro #addManual,.ro #venLimpar,.ro #resetP,.ro #delProj,.ro .searchbox,.ro #copyFrom{display:none!important}
 .ro #editor input,.ro #cartTbl input{pointer-events:none;opacity:.75}
 .ro .blcad-row{display:none}
-.gprod .gprod-av{display:none}.gprod.ativo .gprod-av{display:inline}.gprod.ativo{background:var(--sunk);padding:6px 10px;border-radius:10px}
+.gprod .gprod-av{display:none}.gprod.ativo .gprod-av{display:inline}.gprod{position:sticky;top:0;z-index:50;background:var(--bg,#fff8fb);padding:6px 0}.gprod.ativo{background:var(--sunk);padding:6px 10px;border-radius:10px}
 .audit{font-size:.78rem;color:var(--muted);margin-top:4px}
 
 html,body{margin:0}
@@ -485,7 +485,7 @@ body{font-size:14px}
     <div class="row" style="margin-bottom:10px">
       <div class="chips" id="notaChips"><button class="chip" data-f="">Todas</button><button class="chip" data-f="entrada">Entradas</button><button class="chip" data-f="saida">Saídas</button></div>
       <input type="search" id="notaSearch" class="grow" placeholder="Buscar nº, fornecedor, cliente ou produto" aria-label="Buscar notas">
-      <input type="search" id="notaProd" list="notaProdLista" placeholder="+ Produto: escolha na lista ou digite e Enter (pode vários)" aria-label="Filtrar por produto" style="min-width:260px"><datalist id="notaProdLista"></datalist>
+      <span id="notaPick" style="position:relative;display:inline-block"><input type="search" id="notaProd" autocomplete="off" placeholder="🔍 buscar produto e marcar" aria-label="Buscar e marcar produtos nas notas" style="min-width:260px"><div id="notaProdDrop" class="panel" hidden style="position:absolute;z-index:60;top:calc(100% + 4px);left:0;width:min(560px,92vw);padding:0;box-shadow:0 10px 30px rgba(0,0,0,.18)"></div></span>
       <label class="note" style="display:flex;align-items:center;gap:4px">de <input type="date" id="notaDe" aria-label="Data inicial"></label><label class="note" style="display:flex;align-items:center;gap:4px">até <input type="date" id="notaAte" aria-label="Data final"></label>
       <button class="btn" id="expXml">Exportar XML (.zip)</button>
       <button class="btn" id="expCsv">Exportar itens (CSV)</button>
@@ -692,7 +692,7 @@ body{font-size:14px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=20261103c"></script>
-<script src="shell.js?v=20261103c"></script>
+<script src="config.js?v=20261103d"></script>
+<script src="shell.js?v=20261103d"></script>
 </body>
 </html>
