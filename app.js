@@ -27,8 +27,17 @@ function renderGProd(){const box=$('#gprod');if(!box)return;const dl=$('#gprodLi
   box.classList.toggle('ativo',!!sel.length)}
 function salvarGProd(){try{localStorage.setItem('ciab-gprod',JSON.stringify(GPROD))}catch(e){}renderGProd();renderAll()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-gprm]');if(!b)return;if(b.dataset.gprm==='*')GPROD=[];else GPROD=GPROD.filter(x=>x!==b.dataset.gprm);salvarGProd()});
-document.addEventListener('input',e=>{if(e.target.id!=='gprodIn')return;const v=e.target.value;const c=normK0(v.split(' · ')[0]);const p=v.includes(' · ')&&allProjects0().find(x=>normK0(x.codigo||x.id)===c);if(p){if(!GPROD.includes(p.id))GPROD.push(p.id);e.target.value='';salvarGProd()}});
-document.addEventListener('keydown',e=>{if(e.target.id!=='gprodIn'||e.key!=='Enter')return;e.preventDefault();const v=semAc(e.target.value.trim());if(!v)return;const ts=v.split(/\s+/);const ps=allProjects0().filter(p=>ts.every(t=>semAc([p.codigo,p.id,p.sku,p.colecao].join(' ')).includes(t)));ps.forEach(p=>{if(!GPROD.includes(p.id))GPROD.push(p.id)});e.target.value='';salvarGProd();setSave('ok',ps.length+' produto(s) no filtro')});
+function gpBusca(){const v=semAc(($('#gprodIn')||{}).value||'').trim();const ts=v.split(/\s+/).filter(Boolean);return allProjects0().filter(p=>!ts.length||ts.every(t=>semAc([p.codigo,p.id,p.sku,p.colecao].join(' ')).includes(t)))}
+function renderGpDrop(){const d=$('#gprodDrop');if(!d)return;const L=gpBusca();const tudo=L.length&&L.every(p=>GPROD.includes(p.id));
+  d.innerHTML='<div class="row" style="gap:8px;padding:6px 8px;border-bottom:1px solid var(--line,#eee)"><label class="chk"><input type="checkbox" data-gpall'+(tudo?' checked':'')+'> <b>'+(($('#gprodIn').value||'').trim()?'Marcar os '+L.length+' encontrados':'Marcar todos ('+L.length+')')+'</b></label><span class="grow"></span><button class="btn ghost" data-gpclose>Fechar</button></div>'
+    +'<div style="max-height:320px;overflow:auto">'+(L.length?L.slice(0,300).map(p=>'<label class="chk" style="display:flex;gap:8px;padding:5px 8px;align-items:center"><input type="checkbox" data-gpone="'+esc(p.id)+'"'+(GPROD.includes(p.id)?' checked':'')+'><span class="mono note" style="min-width:86px">'+esc(p.codigo||p.id)+'</span><span>'+esc(p.sku)+'</span><span class="note" style="margin-left:auto">'+esc(p.colecao||'')+'</span></label>').join(''):'<p class="note" style="padding:8px">Nenhum produto com esse texto.</p>')+'</div>';
+  d.hidden=false}
+document.addEventListener('focusin',e=>{if(e.target.id==='gprodIn')renderGpDrop()});
+document.addEventListener('input',e=>{if(e.target.id==='gprodIn')renderGpDrop()});
+document.addEventListener('keydown',e=>{if(e.target.id==='gprodIn'&&e.key==='Escape'){$('#gprodDrop').hidden=true;e.target.blur()}});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.gpone!=null){const id=t.dataset.gpone;GPROD=t.checked?[...new Set(GPROD.concat(id))]:GPROD.filter(x=>x!==id);salvarGProd();renderGpDrop()}
+  else if(t.dataset.gpall!=null){const ids=gpBusca().map(p=>p.id);GPROD=t.checked?[...new Set(GPROD.concat(ids))]:GPROD.filter(x=>!ids.includes(x));salvarGProd();renderGpDrop()}});
+document.addEventListener('click',e=>{const d=$('#gprodDrop');if(!d||d.hidden)return;if(e.target.closest('[data-gpclose]')||!e.target.closest('#gprod'))d.hidden=true});
 let GPROD=[];try{GPROD=JSON.parse(localStorage.getItem('ciab-gprod')||'[]')||[]}catch(e){}let EXP_FILTRO=false;
 function vis(p){return !GPROD.length||GPROD.includes(p.id)}
 function codsVis(){if(!GPROD.length)return null;const S=new Set();allProjects0().filter(vis).forEach(p=>{if(p.codigo)S.add(normK0(p.codigo));envDe(p).forEach(c=>S.add(normK0(c)))});return S}
